@@ -1,0 +1,847 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>מי בטיול?</title>
+<meta name="description" content="אפליקציה לבעלי כלבים: מסמנים 'יצאתי לטיול' ורואים מי עוד מטייל עכשיו בקרבת מקום.">
+<meta name="theme-color" content="#2F5233">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="מי בטיול?">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Suez+One&family=Heebo:wght@300;400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --bg:#F2F5EC;
+    --surface:#FFFFFF;
+    --surface-2:#E7EEDE;
+    --text:#1B2A1E;
+    --text-muted:#5B6B57;
+    --primary:#2F5233;
+    --primary-ink:#F2F5EC;
+    --accent:#D9A441;
+    --accent-ink:#4A3210;
+    --stop:#A8472F;
+    --stop-ink:#FCF3EE;
+    --ring:rgba(47,82,51,.16);
+    --ring-strong:rgba(47,82,51,.30);
+    --live:#3F8C4E;
+    --danger-bg:#FBEAE5;
+    --danger-text:#8C3A26;
+    --shadow:0 1px 2px rgba(27,42,30,.06), 0 8px 24px -12px rgba(27,42,30,.22);
+    --radius-lg:22px;
+    --radius-md:14px;
+    --radius-sm:9px;
+    --bg-tint:rgba(242,245,236,.42);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#101810; --surface:#18221A; --surface-2:#202C21; --text:#E9F0E3; --text-muted:#9CAD97;
+      --primary:#79AD86; --primary-ink:#0F1A11; --accent:#E7B75B; --accent-ink:#2A1B06;
+      --stop:#D97A5C; --stop-ink:#2B1109; --ring:rgba(121,173,134,.20); --ring-strong:rgba(121,173,134,.36);
+      --live:#6FCB80; --danger-bg:#2C1712; --danger-text:#F0B7A4;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+      --bg-tint:rgba(16,24,16,.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#101810; --surface:#18221A; --surface-2:#202C21; --text:#E9F0E3; --text-muted:#9CAD97;
+    --primary:#79AD86; --primary-ink:#0F1A11; --accent:#E7B75B; --accent-ink:#2A1B06;
+    --stop:#D97A5C; --stop-ink:#2B1109; --ring:rgba(121,173,134,.20); --ring-strong:rgba(121,173,134,.36);
+    --live:#6FCB80; --danger-bg:#2C1712; --danger-text:#F0B7A4;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 12px 28px -14px rgba(0,0,0,.6);
+    --bg-tint:rgba(16,24,16,.55);
+  }
+
+  *{box-sizing:border-box;}
+  html{background:var(--bg);}
+  body{
+    margin:0;
+    color:var(--text);
+    font-family:"Heebo","Segoe UI",system-ui,sans-serif;
+    direction:rtl;
+    text-align:right;
+    -webkit-font-smoothing:antialiased;
+    background-color:var(--bg);
+    background-image: linear-gradient(var(--bg-tint), var(--bg-tint)), url("/bg-pattern.jpg");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    background-attachment: fixed;
+    min-height:100dvh;
+  }
+  .app{ max-width:480px; margin:0 auto; padding:20px 16px 48px; min-height:100dvh; }
+
+  .install-banner{ display:flex; align-items:flex-start; gap:10px; background:var(--surface-2);
+    border:1.5px solid var(--ring-strong); border-radius:var(--radius-md); padding:12px 14px;
+    margin-bottom:14px; font-size:.82rem; line-height:1.6; color:var(--text); }
+  .install-banner .txt{flex:1;}
+  .install-banner .txt b{display:block;font-size:.86rem;margin-bottom:2px;}
+  .install-close{ appearance:none; border:none; background:none; cursor:pointer; color:var(--text-muted);
+    font-size:1.1rem; line-height:1; padding:2px; flex:0 0 auto; }
+
+  .toast{ position:fixed; left:50%; bottom:26px; transform:translateX(-50%) translateY(6px); background:var(--text);
+    color:var(--bg); padding:10px 18px; border-radius:999px; font-size:.85rem; font-weight:600; box-shadow:var(--shadow);
+    z-index:80; opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease; max-width:86vw;
+    text-align:center; }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+  a{color:inherit;}
+  button{font-family:inherit;}
+  button:focus-visible, a:focus-visible, input:focus-visible{ outline:2.5px solid var(--primary); outline-offset:2px; }
+
+  header.top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .brand .mark{ width:40px;height:40px;flex:0 0 auto; border-radius:12px; background:var(--primary);
+    display:flex;align-items:center;justify-content:center; box-shadow:var(--shadow); }
+  .brand .mark svg{width:22px;height:22px;fill:var(--primary-ink);}
+  .brand h1{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.5rem; margin:0; line-height:1; letter-spacing:.2px; }
+  .brand .tagline{ font-size:.78rem; color:var(--text-muted); margin-top:3px; }
+  .icon-btn{ width:38px;height:38px; border-radius:11px; border:1px solid var(--ring-strong); background:var(--surface);
+    display:flex;align-items:center;justify-content:center; cursor:pointer; color:var(--text-muted);
+    transition:background .15s ease, color .15s ease; }
+  .icon-btn:hover{color:var(--text);}
+  .icon-btn svg{width:18px;height:18px;fill:currentColor;}
+
+  .gate{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:34px 24px;
+    text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px; }
+  .gate .paw-big{width:56px;height:56px;fill:var(--primary);opacity:.9;}
+  .gate h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.3rem; margin:2px 0 0; }
+  .gate p{ color:var(--text-muted); font-size:.92rem; line-height:1.6; max-width:34ch; margin:0; }
+  .btn{ appearance:none; border:none; cursor:pointer; border-radius:999px; font-weight:700; font-size:.98rem;
+    padding:14px 26px; transition:transform .12s ease, box-shadow .12s ease, filter .12s ease; }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--primary);color:var(--primary-ink);box-shadow:var(--shadow);}
+  .btn-primary:hover{filter:brightness(1.06);}
+  .gate .err{ background:var(--danger-bg); color:var(--danger-text); border-radius:var(--radius-sm);
+    padding:10px 14px; font-size:.85rem; line-height:1.5; }
+
+  .status-card{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:22px;
+    display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
+  .status-line{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-muted); }
+  .conn-line{ display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--text-muted); opacity:.8; }
+  .conn-dot{ width:7px;height:7px;border-radius:50%; background:#9aa89a; }
+  .conn-dot.online{ background:var(--live); }
+  .live-dot{ width:8px;height:8px;border-radius:50%; background:var(--live); box-shadow:0 0 0 0 var(--live); animation:pulse 1.8s infinite; }
+  @keyframes pulse{ 0%{box-shadow:0 0 0 0 rgba(63,140,78,.5);} 70%{box-shadow:0 0 0 9px rgba(63,140,78,0);} 100%{box-shadow:0 0 0 0 rgba(63,140,78,0);} }
+  @media (prefers-reduced-motion: reduce){ .live-dot{animation:none;} }
+
+  .cta{ width:190px;height:190px; border-radius:50%; border:none; cursor:pointer; position:relative;
+    display:block; padding:0; background:transparent;
+    background-image:url("/cta-start.png");
+    background-size:cover; background-position:center; background-repeat:no-repeat;
+    box-shadow:0 10px 30px -10px rgba(0,0,0,.4), var(--shadow);
+    transition:transform .12s ease, filter .12s ease; }
+  .cta:hover{filter:brightness(1.04);}
+  .cta:active{transform:scale(.97);}
+  .cta .paw{display:none;}
+  .cta.walking{ background-image:url("/cta-stop.png"); }
+  /* הטקסט עדיין קיים ב-DOM לנגישות (קוראי מסך) אך חבוי חזותית - העיצוב מגיע מתמונת המדבקה עצמה */
+  #ctaLabel, #ctaSub{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0);
+    white-space:nowrap; }
+  .walk-timer{ font-variant-numeric:tabular-nums; font-size:.95rem; font-weight:600; color:var(--text-muted); }
+
+  .profile-form{ width:100%; display:flex; flex-direction:column; gap:10px; background:var(--surface-2);
+    border-radius:var(--radius-md); padding:16px; }
+  .profile-form .field label{ display:block; font-size:.78rem; color:var(--text-muted); margin-bottom:4px; font-weight:600; }
+  .profile-form input, .profile-form select{ width:100%; border:1.5px solid var(--ring-strong); background:var(--surface); color:var(--text);
+    border-radius:var(--radius-sm); padding:10px 12px; font-size:.95rem; font-family:inherit; }
+  .profile-form .row{display:flex;gap:10px;}
+  .profile-form .row .field{flex:1;}
+
+  .panel-title{ display:flex; align-items:baseline; justify-content:space-between; margin:22px 2px 10px; }
+  .panel-title h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.08rem; margin:0; }
+  .panel-title span{ font-size:.78rem; color:var(--text-muted); }
+  .radar-wrap{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:16px; }
+
+  .map-wrap{ position:relative; padding:0; overflow:hidden; }
+  .map-wrap #map{ width:100%; height:340px; background:var(--surface-2); }
+  .map-recenter{ position:absolute; bottom:14px; left:14px; z-index:1000; }
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip{ background:var(--surface); color:var(--text); }
+  .leaflet-popup-content{ font-family:"Heebo",sans-serif; direction:rtl; text-align:right; font-size:.82rem; line-height:1.55; margin:10px 12px; }
+  .leaflet-container{ font-family:"Heebo",sans-serif; }
+
+  .dog-badge{ width:30px;height:30px;border-radius:50%; background:var(--surface); overflow:hidden;
+    display:flex;align-items:center;justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,.2); border:2px solid var(--surface); }
+  .dog-badge svg{ width:21px;height:21px; }
+  .dog-badge img{ width:100%;height:100%;object-fit:cover; }
+  .dog-badge.me{ width:34px;height:34px; border-width:3px; }
+  .dog-badge.me svg{ width:23px;height:23px; }
+  .dog-badge.list{ width:42px;height:42px;flex:0 0 auto; }
+  .dog-badge.list svg{ width:29px;height:29px; }
+
+  .icon-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+  .icon-grid-item{ border:none; background:none; padding:0; cursor:pointer; border-radius:50%; }
+  .icon-grid-item img{ width:100%; aspect-ratio:1; border-radius:50%; object-fit:cover; display:block;
+    border:3px solid transparent; box-shadow:0 2px 6px rgba(0,0,0,.15); }
+  .icon-grid-item:hover img{ border-color:var(--ring-strong); }
+  .icon-picked{ display:flex; flex-direction:column; align-items:center; gap:10px; padding:4px 0 2px; }
+  .icon-ring{ width:96px;height:96px;border-radius:50%; border:6px solid var(--accent); padding:4px;
+    box-sizing:border-box; background:var(--surface); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.18); }
+  .icon-ring img{ width:100%;height:100%;border-radius:50%;object-fit:cover;display:block; }
+  .link-btn{ appearance:none; border:none; background:none; cursor:pointer; color:var(--primary);
+    font-weight:700; font-size:.82rem; font-family:inherit; padding:4px 8px; }
+  .link-btn:hover{ text-decoration:underline; }
+  .field-error{ color:var(--danger-text); font-size:.78rem; margin-top:6px; }
+
+  .theme-picker{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .theme-picker .theme-label{ font-size:.72rem; color:var(--text-muted); font-weight:600; }
+  .theme-swatches{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
+  .theme-swatch{ width:26px;height:26px;border-radius:50%; border:2px solid transparent; cursor:pointer;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.14); padding:0; }
+  .theme-swatch.active{ border-color:var(--primary); box-shadow:0 0 0 2px var(--surface), 0 0 0 4px var(--primary); }
+
+  .leaflet-tooltip.dog-tooltip{ background:var(--surface); color:var(--text); border:none; border-radius:8px;
+    font-family:"Heebo",sans-serif; font-size:.72rem; font-weight:700; padding:3px 9px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
+  .leaflet-tooltip.dog-tooltip::before{ border-top-color:var(--surface); }
+
+  .nearby-list{ display:flex; flex-direction:column; gap:10px; }
+  .walker-card{ display:flex; flex-direction:column; gap:10px; background:var(--surface); border-radius:var(--radius-md);
+    box-shadow:var(--shadow); padding:12px 14px; }
+  .wc-row{ display:flex; align-items:center; gap:12px; }
+  .walker-card .info{flex:1;min-width:0;}
+  .walker-card .info .name{ font-weight:700; font-size:.94rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .walker-card .info .dog{ font-size:.78rem; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .walker-card .meta{ display:flex; flex-direction:column; align-items:flex-end; gap:4px; flex:0 0 auto; }
+  .chip{ font-size:.7rem; font-weight:700; padding:3px 8px; border-radius:999px; background:var(--surface-2);
+    color:var(--text-muted); white-space:nowrap; }
+  .chip.dist{color:var(--primary);background:color-mix(in srgb, var(--primary) 14%, transparent);}
+  .wc-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .star-btn{ appearance:none; border:1.5px solid var(--ring-strong); background:var(--surface-2); color:#D9A441;
+    width:34px;height:34px;border-radius:50%; font-size:1.1rem; line-height:1; cursor:pointer; display:flex;
+    align-items:center; justify-content:center; flex:0 0 auto; transition:transform .12s ease, background .15s ease; }
+  .star-btn:active{transform:scale(.92);}
+  .star-btn.active{ background:color-mix(in srgb, #D9A441 20%, transparent); border-color:#D9A441; }
+  .invite-btn{ appearance:none; border:none; border-radius:999px; background:var(--primary); color:var(--primary-ink);
+    font-weight:700; font-size:.78rem; padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
+  .invite-btn:active{transform:scale(.96);}
+
+  .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
+    text-align:center; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
+
+  footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7; padding:0 8px; }
+
+  [hidden]{display:none!important;}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="top">
+    <div class="brand">
+      <div class="mark">
+        <svg viewBox="0 0 24 24"><path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>
+      </div>
+      <div>
+        <h1>מי בטיול?</h1>
+        <div class="tagline">מי מטייל עם הכלב עכשיו, לידך</div>
+      </div>
+    </div>
+    <button class="icon-btn" id="editProfileBtn" title="ערוך פרופיל" hidden>
+      <svg viewBox="0 0 24 24"><path d="M4 20.4V16.6l11-11 3.8 3.8-11 11H4Zm14.7-13.9-1.9-1.9 1.6-1.6 1.9 1.9-1.6 1.6Z"/></svg>
+    </button>
+  </header>
+
+  <div class="install-banner" id="installBanner" hidden>
+    <div class="txt" id="installBannerText"></div>
+    <button type="button" class="install-close" id="installClose" aria-label="סגירה">✕</button>
+  </div>
+
+  <div class="gate" id="gate">
+    <svg class="paw-big" viewBox="0 0 24 24"><path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>
+    <h2>בואו נראה מי בסביבה</h2>
+    <p>כדי להראות לך מטיילים קרובים ולאפשר לך להיות גלוי/ה, האפליקציה צריכה גישה למיקום שלך. המיקום נשמר רק כל עוד את/ה מסומן/ת כ"בטיול".</p>
+    <button class="btn btn-primary" id="enableLocationBtn">אפשרו גישה למיקום</button>
+    <div class="err" id="gateErr" hidden></div>
+  </div>
+
+  <main id="mainApp" hidden>
+
+    <div class="status-card">
+
+      <div class="status-line" id="statusLine"><span>לא בטיול כרגע</span></div>
+
+      <button class="cta" id="ctaBtn">
+        <svg class="paw" viewBox="0 0 24 24"><path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>
+        <span id="ctaLabel">יצאתי<br>לטיול</span>
+        <small id="ctaSub">הפוך/הפכי לגלוי/ה</small>
+      </button>
+
+      <div class="walk-timer" id="walkTimer" hidden></div>
+
+      <form class="profile-form" id="profileForm" hidden>
+        <div class="field"><label for="dogName">שם הכלב/ה</label>
+          <input id="dogName" maxlength="24" placeholder="לדוגמה: באדי" required></div>
+        <div class="field"><label for="dogBreed">גזע הכלב</label>
+          <select id="dogBreed"></select></div>
+        <div class="field"><label>תמונת הכלב</label><div id="iconPicker"></div>
+          <div class="field-error" id="iconError" hidden>בחרו תמונה של הכלב כדי להמשיך</div></div>
+        <button type="submit" class="btn btn-primary">התחילו את הטיול</button>
+      </form>
+
+      <div class="conn-line"><span class="conn-dot" id="connDot"></span><span id="connLabel">מתחברים לשרת…</span></div>
+      <button type="button" class="link-btn" id="notifyBtn">🔔 הפעילו התראות מחברים</button>
+    </div>
+
+    <div class="panel-title"><h2>מפה</h2><span></span></div>
+    <div class="radar-wrap map-wrap">
+      <div id="map"></div>
+      <button class="icon-btn map-recenter" id="recenterBtn" title="חזרה למיקום שלי" type="button">
+        <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.06A7.002 7.002 0 0 0 13 4.06V2h-2v2.06A7.002 7.002 0 0 0 4.06 11H2v2h2.06A7.002 7.002 0 0 0 11 19.94V22h2v-2.06A7.002 7.002 0 0 0 19.94 13H22v-2ZM12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z"/></svg>
+      </button>
+    </div>
+
+    <div class="panel-title"><h2>בטיול עכשיו</h2><span id="nearbyCount"></span></div>
+    <div id="nearbyContainer">
+      <div class="empty-note" id="emptyNote">עדיין לא רואים כאן אף אחד. ברגע שמישהו לידך ילחץ על "יצאתי לטיול", הוא/היא יופיעו כאן.</div>
+      <div class="nearby-list" id="nearbyList"></div>
+    </div>
+
+    <footer class="note">
+      המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
+    </footer>
+
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var STALE_MS = 20*60*1000;
+  var PING_MS = 15*1000;
+
+  var $ = function(id){ return document.getElementById(id); };
+  var els = {
+    gate:$("gate"), gateErr:$("gateErr"), enableLocationBtn:$("enableLocationBtn"),
+    mainApp:$("mainApp"), editProfileBtn:$("editProfileBtn"),
+    statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"),
+    walkTimer:$("walkTimer"), profileForm:$("profileForm"), dogName:$("dogName"), dogBreed:$("dogBreed"),
+    iconPicker:$("iconPicker"), iconError:$("iconError"),
+    nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
+    connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
+    installBanner:$("installBanner"), installBannerText:$("installBannerText"), installClose:$("installClose"),
+    notifyBtn:$("notifyBtn"), toast:$("toast")
+  };
+
+  var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
+    '<path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>';
+
+  var GALLERY_COUNT = 26;
+  var GALLERY_ITEMS = [];
+  for(var _gi=1; _gi<=GALLERY_COUNT; _gi++){ GALLERY_ITEMS.push({ id:"g"+_gi, src:"/dog-icons/g"+_gi+".png" }); }
+  function galleryImageSrc(id){
+    for(var i=0;i<GALLERY_ITEMS.length;i++){ if(GALLERY_ITEMS[i].id === id) return GALLERY_ITEMS[i].src; }
+    return null;
+  }
+
+  var THEME_COLORS = ["#F4B400","#E63946","#457B9D","#2A9D8F","#7B2CBF","#FF6FB5","#2F5233","#6C757D"];
+
+  function dogBadgeHtml(image, extraClass, color){
+    var inner = image ? '<img src="'+escapeHtml(image)+'" alt="">' : FALLBACK_PAW_SVG;
+    var style = color ? ' style="border-color:'+escapeHtml(color)+'"' : '';
+    return '<div class="dog-badge'+(extraClass?" "+extraClass:"")+'"'+style+'>'+inner+'</div>';
+  }
+
+  var selectedIcon = null; // gallery image id ("g1".."g26")
+  var selectedColor = THEME_COLORS[0]; // ring / theme color
+
+  function renderIconPicker(){
+    els.iconError.hidden = true;
+    if(selectedIcon){
+      els.iconPicker.innerHTML =
+        '<div class="icon-picked">'+
+          '<div class="icon-ring" style="border-color:'+escapeHtml(selectedColor)+'">'+
+            '<img src="'+galleryImageSrc(selectedIcon)+'" alt="">'+
+          '</div>'+
+          '<button type="button" class="link-btn" id="changeIconBtn">שינוי תמונה</button>'+
+          '<div class="theme-picker"><span class="theme-label">ערכת נושא</span>'+
+            '<div class="theme-swatches">'+ THEME_COLORS.map(function(c){
+              var active = c.toLowerCase() === selectedColor.toLowerCase() ? " active" : "";
+              return '<button type="button" class="theme-swatch'+active+'" data-color="'+c+'" style="background:'+c+';" title="'+c+'"></button>';
+            }).join("") + '</div>'+
+          '</div>'+
+        '</div>';
+      $("changeIconBtn").addEventListener("click", function(){ selectedIcon = null; renderIconPicker(); });
+      Array.prototype.forEach.call(els.iconPicker.querySelectorAll(".theme-swatch"), function(btn){
+        btn.addEventListener("click", function(){ selectedColor = btn.getAttribute("data-color"); renderIconPicker(); });
+      });
+    } else {
+      els.iconPicker.innerHTML = '<div class="icon-grid">' + GALLERY_ITEMS.map(function(item){
+        return '<button type="button" class="icon-grid-item" data-icon="'+item.id+'">'+
+          '<img src="'+item.src+'" alt=""></button>';
+      }).join("") + '</div>';
+      Array.prototype.forEach.call(els.iconPicker.querySelectorAll(".icon-grid-item"), function(btn){
+        btn.addEventListener("click", function(){
+          selectedIcon = btn.getAttribute("data-icon");
+          renderIconPicker();
+        });
+      });
+    }
+  }
+
+  var DOG_BREEDS = [
+    "תערובת / לא ידוע",
+    "אקיטה","בול טרייר","בולדוג אנגלי","בולדוג צרפתי","בורדר קולי","ביגל","בסנג'י",
+    "ג'ק ראסל טרייר","גולדן רטריבר","גרייט דיין (דוג גרמני)",
+    "דוברמן","דלמטי","דכשונד (תחשן)",
+    "האסקי סיבירי","וייזלה",
+    "יורקשייר טרייר",
+    "כלב כנעני",
+    "לברדור רטריבר",
+    "מלינואה בלגי","מלטז",
+    "סן ברנרד",
+    "פודל","פומרניאן","פיטבול / סטפורדשיר אמריקאי",
+    "צ'יוואווה",
+    "קוואליר קינג צ'ארלס ספניאל","קוקר ספניאל","קורגי","קנה קורסו",
+    "רועה אוסטרלי (אוסי)","רועה גרמני","רוטווילר",
+    "שיבה אינו","שיצו","שנאוצר",
+    "אחר"
+  ];
+
+  function populateBreedSelect(){
+    els.dogBreed.innerHTML = '<option value="">בחרו גזע (לא חובה)</option>' +
+      DOG_BREEDS.map(function(b){
+        var v = escapeHtml(b);
+        return '<option value="'+v+'">'+v+'</option>';
+      }).join("");
+  }
+  populateBreedSelect();
+
+  renderIconPicker();
+
+  function uid(){
+    var k="mibetiyul_id";
+    var v=localStorage.getItem(k);
+    if(!v){ v=(crypto.randomUUID?crypto.randomUUID():(Date.now()+"-"+Math.random().toString(16).slice(2)));
+      try{localStorage.setItem(k,v);}catch(e){} }
+    return v;
+  }
+  function getProfile(){ try{return JSON.parse(localStorage.getItem("mibetiyul_profile")||"null");}catch(e){return null;} }
+  function saveProfile(p){ try{localStorage.setItem("mibetiyul_profile", JSON.stringify(p));}catch(e){} }
+
+  var myId = uid();
+  var socket = null;
+  var myPos = null;
+  var watchId = null;
+  var isWalking = false;
+  var walkStartedAt = null;
+  var pingTimer = null;
+  var timerTick = null;
+  var latestDocs = {};
+
+  function toRad(d){ return d*Math.PI/180; }
+  function distanceMeters(lat1,lon1,lat2,lon2){
+    var R=6371000, f1=toRad(lat1), f2=toRad(lat2), df=toRad(lat2-lat1), dl=toRad(lon2-lon1);
+    var a=Math.sin(df/2)*Math.sin(df/2)+Math.cos(f1)*Math.cos(f2)*Math.sin(dl/2)*Math.sin(dl/2);
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+  function bearingDeg(lat1,lon1,lat2,lon2){
+    var f1=toRad(lat1), f2=toRad(lat2), dl=toRad(lon2-lon1);
+    var y=Math.sin(dl)*Math.cos(f2), x=Math.cos(f1)*Math.sin(f2)-Math.sin(f1)*Math.cos(f2)*Math.cos(dl);
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
+  }
+  function fmtDist(m){
+    if(m<1000) return (Math.round(m/10)*10) + " מ׳";
+    var km = m/1000;
+    return (km>=10 ? Math.round(km) : km.toFixed(1)) + ' ק"מ';
+  }
+  function fmtAgo(iso){
+    var mins = Math.max(0, Math.round((Date.now()-new Date(iso).getTime())/60000));
+    if(mins < 1) return "התחיל/ה עכשיו";
+    if(mins < 60) return "בטיול כבר " + mins + " דק׳";
+    var hrs = Math.floor(mins/60), rem = mins%60;
+    return "בטיול כבר " + hrs + " שע׳" + (rem ? " ו-" + rem + " דק׳" : "");
+  }
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+    });
+  }
+
+  var toastTimer = null;
+  function showToast(msg){
+    els.toast.textContent = msg;
+    els.toast.classList.add("show");
+    if(toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ els.toast.classList.remove("show"); }, 3200);
+  }
+
+  // ===== התקנה למסך הבית (נדרש באייפון כדי שהתראות Push יעבדו בכלל) =====
+  function isIos(){
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+  function isStandalone(){
+    return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+  }
+  var deferredInstallPrompt = null;
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    if(!isStandalone() && !localStorage.getItem("mibetiyul_install_dismissed")) showInstallBanner("android");
+  });
+  function showInstallBanner(kind){
+    if(isStandalone() || localStorage.getItem("mibetiyul_install_dismissed")) return;
+    if(kind === "ios"){
+      els.installBannerText.innerHTML = "<b>הוסיפו את האפליקציה למסך הבית</b>כדי לקבל התראות מחברים באייפון, יש להקיש על כפתור השיתוף בספארי ⬆️ ואז \"הוסף למסך הבית\".";
+    } else {
+      els.installBannerText.innerHTML = "<b>התקינו את האפליקציה</b>כך תוכלו לקבל התראות מחברים גם כשהאפליקציה סגורה.";
+    }
+    els.installBanner.hidden = false;
+  }
+  els.installClose.addEventListener("click", function(){
+    els.installBanner.hidden = true;
+    try{ localStorage.setItem("mibetiyul_install_dismissed", "1"); }catch(e){}
+  });
+  if(isIos() && !isStandalone()) showInstallBanner("ios");
+
+  // ===== התראות Push =====
+  function urlBase64ToUint8Array(base64String){
+    var padding = "=".repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for(var i=0;i<rawData.length;i++){ outputArray[i] = rawData.charCodeAt(i); }
+    return outputArray;
+  }
+  function pushSupported(){
+    return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  }
+  function subscribeToPush(){
+    return navigator.serviceWorker.ready.then(function(reg){
+      return fetch("/api/vapid-public-key").then(function(r){ return r.json(); }).then(function(data){
+        return reg.pushManager.getSubscription().then(function(existing){
+          if(existing) return existing;
+          return reg.pushManager.subscribe({ userVisibleOnly:true, applicationServerKey: urlBase64ToUint8Array(data.key) });
+        });
+      });
+    }).then(function(sub){
+      var json = sub.toJSON ? sub.toJSON() : sub;
+      return fetch("/api/subscribe", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ id: myId, subscription: json })
+      });
+    });
+  }
+  function refreshNotifyBtn(){
+    if(!pushSupported()){ els.notifyBtn.hidden = true; return; }
+    if(Notification.permission === "granted"){
+      els.notifyBtn.textContent = "🔔 התראות פעילות";
+    } else if(Notification.permission === "denied"){
+      els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן";
+    } else {
+      els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
+    }
+  }
+  els.notifyBtn.addEventListener("click", function(){
+    if(!pushSupported()){ showToast("הדפדפן הזה לא תומך בהתראות."); return; }
+    if(Notification.permission === "denied"){
+      showToast("ההתראות חסומות - יש לאשר אותן בהגדרות הדפדפן עבור האתר."); return;
+    }
+    if(isIos() && !isStandalone()){ showInstallBanner("ios"); return; }
+    Notification.requestPermission().then(function(perm){
+      refreshNotifyBtn();
+      if(perm !== "granted") return;
+      subscribeToPush().then(function(){ showToast("התראות הופעלו! 🔔"); })
+        .catch(function(){ showToast("לא הצלחנו להפעיל התראות. נסו שוב."); });
+    });
+  });
+  refreshNotifyBtn();
+
+  // ===== מועדפים (כוכב הדדי) והזמנת "בוא/י לגינה" =====
+  var myFavoritesOut = []; // כלבים שאני סימנתי בכוכב
+  var myFavoritesIn = [];  // כלבים שסימנו אותי בכוכב
+  function isStarred(id){ return myFavoritesOut.indexOf(id) !== -1; }
+  function isMutualWith(id){ return isStarred(id) && myFavoritesIn.indexOf(id) !== -1; }
+  var INVITE_ERROR_MESSAGES = {
+    not_mutual: "אפשר להזמין רק כלב/ה שסימנתם בכוכב וגם סימנו אתכם בחזרה.",
+    not_walking: "צריך לצאת לטיול כדי לשלוח הזמנה.",
+    no_subscription: "למטייל/ת הזו עדיין אין התראות מופעלות במכשיר שלה/ו.",
+    cooldown: "כבר שלחתם הזמנה לאחרונה - אפשר לנסות שוב בעוד כמה דקות.",
+    send_failed: "לא הצלחנו לשלוח את ההזמנה. נסו שוב."
+  };
+
+  els.enableLocationBtn.addEventListener("click", function(){
+    els.gateErr.hidden = true;
+    els.enableLocationBtn.disabled = true;
+    els.enableLocationBtn.textContent = "מבקש/ת גישה…";
+    if(!("geolocation" in navigator)){ showGateError("הדפדפן הזה לא תומך בשירותי מיקום."); return; }
+    navigator.geolocation.getCurrentPosition(function(pos){
+      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      startApp();
+    }, function(err){
+      showGateError(err.code === 1
+        ? "הגישה למיקום נחסמה. יש לאשר גישה למיקום בהגדרות הדפדפן ולנסות שוב."
+        : "לא הצלחנו לאתר את המיקום שלך. נסו שוב.");
+    }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+  });
+
+  function showGateError(msg){
+    els.gateErr.textContent = msg; els.gateErr.hidden = false;
+    els.enableLocationBtn.disabled = false; els.enableLocationBtn.textContent = "אפשרו גישה למיקום";
+  }
+
+  function startApp(){
+    els.gate.hidden = true; els.mainApp.hidden = false; els.editProfileBtn.hidden = false;
+
+    watchId = navigator.geolocation.watchPosition(function(pos){
+      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      renderRadar(); renderList();
+    }, function(){ /* keep last known position on transient errors */ }, {
+      enableHighAccuracy:true, maximumAge:15000, timeout:20000
+    });
+
+    connectSocket();
+    renderRadar(); renderList(); renderCta();
+  }
+
+  function connectSocket(){
+    socket = io();
+    socket.on("connect", function(){
+      els.connDot.classList.add("online"); els.connLabel.textContent = "מחובר/ת לשרת";
+      socket.emit("favorites:sync", { id: myId });
+    });
+    socket.on("disconnect", function(){ els.connDot.classList.remove("online"); els.connLabel.textContent = "מנותק/ת - מנסה להתחבר מחדש…"; });
+    socket.on("walkers:update", function(list){
+      var next = {};
+      (list||[]).forEach(function(w){ if(w.id !== myId) next[w.id] = w; });
+      latestDocs = next;
+      renderRadar(); renderList();
+    });
+    socket.on("favorites:state", function(state){
+      myFavoritesOut = (state && state.outgoing) || [];
+      myFavoritesIn = (state && state.incoming) || [];
+      renderList();
+    });
+    socket.on("invite:result", function(res){
+      if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }
+      else { showToast((res && INVITE_ERROR_MESSAGES[res.reason]) || "לא הצלחנו לשלוח את ההזמנה."); }
+    });
+  }
+
+  function writeMyDoc(profile){
+    if(!socket || !myPos) return;
+    socket.emit("checkin", {
+      id: myId, dogName: profile.dogName, dogBreed: profile.dogBreed || "", dogType: "gallery", dogIcon: profile.dogIcon || null,
+      dogColor: profile.dogColor || THEME_COLORS[0],
+      lat: myPos.lat, lng: myPos.lng, startedAt: walkStartedAt
+    });
+  }
+  function pingMyDoc(){
+    if(!socket || !myPos) return;
+    socket.emit("ping", { id: myId, lat: myPos.lat, lng: myPos.lng });
+  }
+  function deleteMyDoc(){ if(socket) socket.emit("checkout", { id: myId }); }
+
+  function renderCta(){
+    if(isWalking){
+      els.ctaBtn.classList.add("walking");
+      els.ctaLabel.innerHTML = "סיימתי<br>את הטיול";
+      els.ctaSub.textContent = "את/ה כרגע גלוי/ה";
+      els.statusLine.innerHTML = '<span class="live-dot"></span><span>את/ה בטיול — גלוי/ה למטיילים אחרים</span>';
+      els.walkTimer.hidden = false;
+    } else {
+      els.ctaBtn.classList.remove("walking");
+      els.ctaLabel.innerHTML = "יצאתי<br>לטיול";
+      els.ctaSub.textContent = "הפוך/הפכי לגלוי/ה";
+      els.statusLine.innerHTML = "<span>לא בטיול כרגע — רואים אותך רק במפה שלך</span>";
+      els.walkTimer.hidden = true;
+    }
+  }
+
+  function tickTimer(){
+    if(!isWalking || !walkStartedAt) return;
+    var mins = Math.max(0, Math.round((Date.now()-new Date(walkStartedAt).getTime())/60000));
+    els.walkTimer.textContent = mins < 1 ? "רגע התחלת" : ("בטיול כבר " + mins + " דק׳");
+  }
+
+  var formPurpose = null;
+
+  els.ctaBtn.addEventListener("click", function(){
+    if(isWalking){ stopWalk(); return; }
+    var profile = getProfile();
+    if(!profile || !profile.dogName){
+      formPurpose = "start"; els.profileForm.hidden = false; els.dogName.focus(); return;
+    }
+    startWalk(profile);
+  });
+
+  els.profileForm.addEventListener("submit", function(e){
+    e.preventDefault();
+    if(!selectedIcon){ els.iconError.hidden = false; return; }
+    var profile = { dogName: els.dogName.value.trim() || "כלב/ה", dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor };
+    saveProfile(profile);
+    els.profileForm.hidden = true;
+    if(isWalking){
+      writeMyDoc(profile);
+      if(meMarker){ meMarker.setIcon(meIcon(profile)); meMarker.setTooltipContent(escapeHtml(profile.dogName)); }
+    }
+    else if(formPurpose === "start"){ startWalk(profile); }
+    formPurpose = null;
+  });
+
+  els.editProfileBtn.addEventListener("click", function(){
+    var p = getProfile() || {};
+    els.dogName.value = p.dogName || "";
+    els.dogBreed.value = p.dogBreed || "";
+    selectedIcon = p.dogIcon || null;
+    selectedColor = p.dogColor || THEME_COLORS[0];
+    renderIconPicker();
+    if(els.profileForm.hidden){ formPurpose = "edit"; els.profileForm.hidden = false; els.dogName.focus(); }
+    else { els.profileForm.hidden = true; formPurpose = null; }
+  });
+
+  function startWalk(profile){
+    isWalking = true;
+    walkStartedAt = new Date().toISOString();
+    renderCta(); tickTimer();
+    writeMyDoc(profile);
+    pingTimer = setInterval(pingMyDoc, PING_MS);
+    timerTick = setInterval(tickTimer, 30000);
+  }
+  function stopWalk(){
+    isWalking = false; walkStartedAt = null;
+    renderCta(); deleteMyDoc();
+    if(pingTimer){ clearInterval(pingTimer); pingTimer = null; }
+    if(timerTick){ clearInterval(timerTick); timerTick = null; }
+  }
+  window.addEventListener("pagehide", function(){ if(isWalking) deleteMyDoc(); });
+
+  var leafletMap = null;
+  var meMarker = null;
+  var mapMarkers = {}; // walker id -> L.marker
+
+  function meIcon(profile){
+    var p = profile || getProfile() || {};
+    return L.divIcon({
+      className:"", html: dogBadgeHtml(galleryImageSrc(p.dogIcon), "me", p.dogColor),
+      iconSize:[34,34], iconAnchor:[17,17]
+    });
+  }
+  function walkerIcon(data){
+    return L.divIcon({
+      className:"", html: dogBadgeHtml(galleryImageSrc(data.dogIcon), "", data.dogColor),
+      iconSize:[30,30], iconAnchor:[15,15]
+    });
+  }
+
+  function ensureMap(){
+    if(leafletMap || !myPos || typeof L === "undefined") return;
+    leafletMap = L.map("map", { zoomControl:true, attributionControl:true }).setView([myPos.lat, myPos.lng], 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom:19,
+      attribution:'&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
+    }).addTo(leafletMap);
+    var myProfile = getProfile() || {};
+    meMarker = L.marker([myPos.lat, myPos.lng], { icon: meIcon(), zIndexOffset:1000 })
+      .addTo(leafletMap).bindPopup("המיקום שלך")
+      .bindTooltip(escapeHtml(myProfile.dogName || "אני"), {direction:"top", offset:[0,-18], className:"dog-tooltip"});
+  }
+
+  els.recenterBtn.addEventListener("click", function(){
+    if(leafletMap && myPos) leafletMap.setView([myPos.lat, myPos.lng], Math.max(leafletMap.getZoom(), 15));
+  });
+
+  function activeWalkers(){
+    var list=[], now=Date.now();
+    Object.keys(latestDocs).forEach(function(id){
+      var d=latestDocs[id];
+      var age=now-new Date(d.lastPing||d.startedAt||0).getTime();
+      if(age>STALE_MS) return;
+      if(!myPos) return;
+      var dist=distanceMeters(myPos.lat,myPos.lng,d.lat,d.lng);
+      var brg=bearingDeg(myPos.lat,myPos.lng,d.lat,d.lng);
+      list.push({id:id,data:d,dist:dist,bearing:brg});
+    });
+    list.sort(function(a,b){return a.dist-b.dist;});
+    return list;
+  }
+
+  function renderRadar(){
+    ensureMap();
+    if(!leafletMap) return;
+
+    if(meMarker && myPos) meMarker.setLatLng([myPos.lat, myPos.lng]);
+
+    var list = activeWalkers();
+    var seen = {};
+    list.forEach(function(w){
+      seen[w.id] = true;
+      var popupHtml = "<b>"+escapeHtml(w.data.dogName)+"</b>"+
+        (w.data.dogBreed ? "<br>"+escapeHtml(w.data.dogBreed) : "") +
+        "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt);
+      if(mapMarkers[w.id]){
+        mapMarkers[w.id].setLatLng([w.data.lat, w.data.lng]);
+        mapMarkers[w.id].setPopupContent(popupHtml);
+        mapMarkers[w.id].setTooltipContent(escapeHtml(w.data.dogName));
+      } else {
+        mapMarkers[w.id] = L.marker([w.data.lat, w.data.lng], { icon: walkerIcon(w.data) })
+          .addTo(leafletMap).bindPopup(popupHtml)
+          .bindTooltip(escapeHtml(w.data.dogName), {direction:"top", offset:[0,-16], className:"dog-tooltip"});
+      }
+    });
+    Object.keys(mapMarkers).forEach(function(id){
+      if(!seen[id]){ leafletMap.removeLayer(mapMarkers[id]); delete mapMarkers[id]; }
+    });
+  }
+
+  function renderList(){
+    var list=activeWalkers();
+    els.nearbyCount.textContent = list.length ? (list.length + (list.length===1 ? " מטייל/ת" : " מטיילים")) : "";
+    if(!list.length){
+      els.emptyNote.hidden=false; els.nearbyList.hidden=true; els.nearbyList.innerHTML=""; return;
+    }
+    els.emptyNote.hidden=true; els.nearbyList.hidden=false;
+    els.nearbyList.innerHTML = list.map(function(w){
+      var starred = isStarred(w.id);
+      var mutual = isMutualWith(w.id);
+      return '<div class="walker-card">' +
+        '<div class="wc-row">' +
+        dogBadgeHtml(galleryImageSrc(w.data.dogIcon), "list", w.data.dogColor) +
+        '<div class="info"><div class="name">'+escapeHtml(w.data.dogName)+'</div>' +
+        (w.data.dogBreed ? '<div class="dog">'+escapeHtml(w.data.dogBreed)+'</div>' : '') +
+        '</div>' +
+        '<div class="meta"><span class="chip dist">'+fmtDist(w.dist)+'</span>' +
+        '<span class="chip">'+fmtAgo(w.data.startedAt)+'</span></div>' +
+        '</div>' +
+        '<div class="wc-actions">' +
+          '<button type="button" class="star-btn'+(starred?" active":"")+'" data-star="'+w.id+'" title="'+(starred?"הסרה מהמועדפים":"הוספה למועדפים")+'" aria-label="מועדף">'+(starred?"★":"☆")+'</button>' +
+          (mutual ? '<button type="button" class="invite-btn" data-invite="'+w.id+'">🐾 בוא/י לגינה</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call(els.nearbyList.querySelectorAll("[data-star]"), function(btn){
+      btn.addEventListener("click", function(){
+        if(!socket) return;
+        var id = btn.getAttribute("data-star");
+        socket.emit("favorite:toggle", { id: myId, targetId: id, on: !isStarred(id) });
+      });
+    });
+    Array.prototype.forEach.call(els.nearbyList.querySelectorAll("[data-invite]"), function(btn){
+      btn.addEventListener("click", function(){
+        if(!socket) return;
+        socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-invite") });
+      });
+    });
+  }
+
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", function(){
+      navigator.serviceWorker.register("/sw.js").catch(function(){});
+    });
+  }
+
+})();
+</script>
+</body>
+</html>

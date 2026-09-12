@@ -1,0 +1,19 @@
+{
+  "name": "mi-betiyul",
+  "version": "1.0.0",
+  "description": "מי בטיול? - אפליקציה לבעלי כלבים לראות ולפגוש מי מטייל עכשיו בקרבת מקום",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5",
+    "web-push": "^3.6.7"
+  }
+}
