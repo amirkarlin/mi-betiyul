@@ -117,16 +117,6 @@
   .btn:active{transform:scale(.97);}
   .btn-primary{background:var(--primary);color:var(--primary-ink);box-shadow:var(--shadow);}
   .btn-primary:hover{filter:brightness(1.06);}
-  .btn-walk{
-    background-image: linear-gradient(rgba(31,58,35,.62), rgba(31,58,35,.62)), url("/bg-pattern.jpg");
-    background-size: cover, 130px 130px;
-    background-position: center, center;
-    background-repeat: no-repeat, repeat;
-    color:#fff;
-    text-shadow:0 1px 3px rgba(0,0,0,.55), 0 0 1px rgba(0,0,0,.6);
-    box-shadow:0 6px 18px -8px rgba(0,0,0,.45), var(--shadow);
-  }
-  .btn-walk:hover{filter:brightness(1.05);}
   .gate .err{ background:var(--danger-bg); color:var(--danger-text); border-radius:var(--radius-sm);
     padding:10px 14px; font-size:.85rem; line-height:1.5; }
 
@@ -297,7 +287,7 @@
           <select id="dogBreed"></select></div>
         <div class="field"><label>תמונת הכלב</label><div id="iconPicker"></div>
           <div class="field-error" id="iconError" hidden>בחרו תמונה של הכלב כדי להמשיך</div></div>
-        <button type="submit" class="btn btn-primary btn-walk">התחילו את הטיול</button>
+        <button type="submit" class="btn btn-primary">התחילו את הטיול</button>
       </form>
 
       <div class="conn-line"><span class="conn-dot" id="connDot"></span><span id="connLabel">מתחברים לשרת…</span></div>
