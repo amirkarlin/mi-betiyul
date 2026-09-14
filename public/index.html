@@ -195,6 +195,20 @@
   .link-btn:hover{ text-decoration:underline; }
   .field-error{ color:var(--danger-text); font-size:.78rem; margin-top:6px; }
 
+  .account-panel{ display:flex; flex-direction:column; gap:16px; background:var(--surface-2);
+    border-radius:var(--radius-md); padding:16px; width:100%; }
+  .account-code-box{ display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
+  .account-code-label{ font-size:.78rem; color:var(--text-muted); font-weight:600; }
+  .account-code-value{ font-size:1.3rem; font-weight:800; letter-spacing:1.5px; background:var(--surface);
+    border-radius:var(--radius-sm); padding:8px 18px; box-shadow:var(--shadow); direction:ltr; }
+  .account-code-hint{ font-size:.72rem; color:var(--text-muted); line-height:1.55; max-width:32ch; }
+  .account-login-box{ display:flex; flex-direction:column; gap:8px; align-items:center; text-align:center; }
+  .account-login-row{ display:flex; gap:8px; width:100%; }
+  .account-login-row input{ flex:1; min-width:0; border:1.5px solid var(--ring-strong); background:var(--surface);
+    color:var(--text); border-radius:var(--radius-sm); padding:10px 12px; font-size:.95rem; font-family:inherit;
+    text-align:center; letter-spacing:1.5px; text-transform:uppercase; direction:ltr; }
+  .account-login-row .btn{ padding:10px 18px; font-size:.86rem; flex:0 0 auto; }
+
   .theme-picker{ display:flex; flex-direction:column; align-items:center; gap:6px; }
   .theme-picker .theme-label{ font-size:.72rem; color:var(--text-muted); font-weight:600; }
   .theme-swatches{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
@@ -294,6 +308,24 @@
 
       <div class="conn-line"><span class="conn-dot" id="connDot"></span><span id="connLabel">מתחברים לשרת…</span></div>
       <button type="button" class="link-btn" id="notifyBtn">🔔 הפעילו התראות מחברים</button>
+      <button type="button" class="link-btn" id="accountBtn">🔑 החשבון שלי</button>
+
+      <div class="account-panel" id="accountPanel" hidden>
+        <div class="account-code-box" id="accountCodeBox" hidden>
+          <div class="account-code-label">הקוד האישי שלך</div>
+          <div class="account-code-value" id="accountCodeValue">----‑----</div>
+          <div class="account-code-hint">שמרו את הקוד הזה - איתו אפשר לשחזר את הפרופיל שלכם ממכשיר אחר, בלי הרשמה.</div>
+          <button type="button" class="link-btn" id="copyCodeBtn">העתקת הקוד</button>
+        </div>
+        <div class="account-login-box">
+          <div class="account-code-label">יש לכם כבר קוד ממכשיר אחר?</div>
+          <div class="account-login-row">
+            <input type="text" id="loginCodeInput" placeholder="XXXX-XXXX" maxlength="9" autocapitalize="characters" autocomplete="off">
+            <button type="button" class="btn btn-primary" id="loginCodeBtn">התחברות</button>
+          </div>
+          <div class="field-error" id="loginCodeError" hidden></div>
+        </div>
+      </div>
     </div>
 
     <div class="panel-title"><h2>מפה</h2><span></span></div>
@@ -338,7 +370,10 @@
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
     installBanner:$("installBanner"), installBannerText:$("installBannerText"), installClose:$("installClose"),
-    notifyBtn:$("notifyBtn"), toast:$("toast")
+    notifyBtn:$("notifyBtn"), toast:$("toast"),
+    accountBtn:$("accountBtn"), accountPanel:$("accountPanel"), accountCodeBox:$("accountCodeBox"),
+    accountCodeValue:$("accountCodeValue"), copyCodeBtn:$("copyCodeBtn"),
+    loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError")
   };
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
@@ -436,6 +471,30 @@
   }
   function getProfile(){ try{return JSON.parse(localStorage.getItem("mibetiyul_profile")||"null");}catch(e){return null;} }
   function saveProfile(p){ try{localStorage.setItem("mibetiyul_profile", JSON.stringify(p));}catch(e){} }
+  function getMyCode(){ try{return localStorage.getItem("mibetiyul_code")||null;}catch(e){return null;} }
+  function saveMyCode(code){ try{localStorage.setItem("mibetiyul_code", code);}catch(e){} }
+
+  // ===== קוד אישי: שולח את הפרופיל לשרת כדי לקבל/לעדכן קוד קבוע, שאיתו אפשר "להיזכר"
+  // גם ממכשיר אחר בלי הרשמה אמיתית (בלי סיסמה/אימייל) =====
+  function syncProfileToServer(profile){
+    if(!profile || !profile.dogName) return;
+    fetch("/api/profile", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({
+        id: myId, dogName: profile.dogName, dogBreed: profile.dogBreed || "",
+        dogIcon: profile.dogIcon || null, dogColor: profile.dogColor || THEME_COLORS[0]
+      })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      if(data && data.ok && data.code){ saveMyCode(data.code); renderAccountPanel(); }
+    }).catch(function(){});
+  }
+  function renderAccountPanel(){
+    var code = getMyCode();
+    if(els.accountCodeBox){
+      els.accountCodeBox.hidden = !code;
+      if(code) els.accountCodeValue.textContent = code;
+    }
+  }
 
   var myId = uid();
   var socket = null;
@@ -565,6 +624,54 @@
   });
   refreshNotifyBtn();
 
+  // ===== קוד אישי: ממשק לצפייה בקוד ולהתחברות ממכשיר אחר =====
+  els.accountBtn.addEventListener("click", function(){
+    els.accountPanel.hidden = !els.accountPanel.hidden;
+    if(!els.accountPanel.hidden) renderAccountPanel();
+  });
+  els.copyCodeBtn.addEventListener("click", function(){
+    var code = getMyCode();
+    if(!code) return;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(code).then(function(){ showToast("הקוד הועתק! 📋"); }).catch(function(){ showToast(code); });
+    } else {
+      showToast(code);
+    }
+  });
+  els.loginCodeBtn.addEventListener("click", function(){
+    var raw = els.loginCodeInput.value.trim();
+    els.loginCodeError.hidden = true;
+    if(!raw){ els.loginCodeError.textContent = "יש להזין קוד."; els.loginCodeError.hidden = false; return; }
+    var prevText = els.loginCodeBtn.textContent;
+    els.loginCodeBtn.disabled = true; els.loginCodeBtn.textContent = "מתחבר/ת…";
+    fetch("/api/login-with-code", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ code: raw })
+    }).then(function(r){ return r.json().then(function(data){ return { data:data }; }); })
+      .then(function(res){
+        var data = res.data;
+        if(data && data.ok){
+          try{
+            localStorage.setItem("mibetiyul_id", data.id);
+            saveProfile({ dogName:data.dogName, dogBreed:data.dogBreed || "", dogType:"gallery", dogIcon:data.dogIcon || null, dogColor:data.dogColor || THEME_COLORS[0] });
+            saveMyCode(data.code);
+          }catch(e){}
+          showToast("החשבון שוחזר! מרעננים…");
+          setTimeout(function(){ location.reload(); }, 600);
+        } else {
+          els.loginCodeBtn.disabled = false; els.loginCodeBtn.textContent = prevText;
+          els.loginCodeError.textContent = (data && data.error === "not_found")
+            ? "לא נמצא חשבון עם הקוד הזה. בדקו שהוזן נכון."
+            : "הקוד שהוזן לא תקין.";
+          els.loginCodeError.hidden = false;
+        }
+      }).catch(function(){
+        els.loginCodeBtn.disabled = false; els.loginCodeBtn.textContent = prevText;
+        els.loginCodeError.textContent = "שגיאת תקשורת. נסו שוב.";
+        els.loginCodeError.hidden = false;
+      });
+  });
+
   // ===== מועדפים (כוכב הדדי) והזמנת "בוא/י לגינה" =====
   var myFavoritesOut = []; // כלבים שאני סימנתי בכוכב
   var myFavoritesIn = [];  // כלבים שסימנו אותי בכוכב
@@ -610,6 +717,9 @@
 
     connectSocket();
     renderRadar(); renderList(); renderCta();
+    renderAccountPanel();
+    var existingProfile = getProfile();
+    if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
   }
 
   function connectSocket(){
@@ -688,6 +798,7 @@
     if(!selectedIcon){ els.iconError.hidden = false; return; }
     var profile = { dogName: els.dogName.value.trim() || "כלב/ה", dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor };
     saveProfile(profile);
+    syncProfileToServer(profile);
     els.profileForm.hidden = true;
     if(isWalking){
       writeMyDoc(profile);

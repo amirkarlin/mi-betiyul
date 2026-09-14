@@ -47,10 +47,11 @@ function loadStore() {
     const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
     return {
       favorites: (parsed && typeof parsed.favorites === "object" && parsed.favorites) || {},
-      subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {}
+      subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
+      profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {}
     };
   } catch (e) {
-    return { favorites: {}, subscriptions: {} };
+    return { favorites: {}, subscriptions: {}, profiles: {} };
   }
 }
 const store = loadStore();
@@ -60,6 +61,23 @@ function saveStore() {
   } catch (e) {
     console.error("שגיאה בשמירת data.json:", e);
   }
+}
+
+// ===== קוד אישי: מאפשר "להיזכר" גם ממכשיר/דפדפן אחר בלי הרשמה אמיתית (בלי סיסמה/אימייל) -
+// המשתמש/ת שומר/ת קוד קצר וקריא, ומזין/ה אותו במכשיר החדש כדי לקבל בחזרה את הפרופיל,
+// המועדפים וההתראות שלו/ה. פשוט בכוונה, מתאים ל-MVP קהילתי ולא לאבטחה ברמת בנק. =====
+const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"; // בלי 0/O ו-1/I/L כדי למנוע בלבול חזותי
+function generateCodePart() {
+  let s = "";
+  for (let i = 0; i < 4; i++) s += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return s;
+}
+function generateUniqueCode() {
+  let code;
+  do {
+    code = generateCodePart() + "-" + generateCodePart();
+  } while (Object.values(store.profiles).some((p) => p.code === code));
+  return code;
 }
 
 function isValidId(v) {
@@ -128,6 +146,37 @@ app.post("/api/unsubscribe", (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== קוד אישי: שמירת/עדכון הפרופיל בשרת (מחזיר קוד קבוע), והתחברות ממכשיר אחר לפי קוד =====
+app.post("/api/profile", (req, res) => {
+  const id = req.body && req.body.id;
+  if (!isValidId(id)) return res.status(400).json({ ok: false });
+  const clean = sanitizeProfileInput(req.body);
+  if (!clean) return res.status(400).json({ ok: false });
+  const existing = store.profiles[id];
+  const code = (existing && existing.code) || generateUniqueCode();
+  store.profiles[id] = Object.assign({}, clean, { code, updatedAt: new Date().toISOString() });
+  saveStore();
+  res.json({ ok: true, code });
+});
+
+app.post("/api/login-with-code", (req, res) => {
+  const raw = req.body && req.body.code;
+  const code = typeof raw === "string" ? raw.trim().toUpperCase() : "";
+  if (!code) return res.status(400).json({ ok: false, error: "invalid_code" });
+  const entry = Object.entries(store.profiles).find(([, p]) => p.code === code);
+  if (!entry) return res.status(404).json({ ok: false, error: "not_found" });
+  const [id, profile] = entry;
+  res.json({
+    ok: true,
+    id,
+    dogName: profile.dogName,
+    dogBreed: profile.dogBreed,
+    dogIcon: profile.dogIcon,
+    dogColor: profile.dogColor,
+    code: profile.code
+  });
+});
+
 /** @type {Map<string, {dogName:string, dogBreed:string, dogType:string, dogColor:string, dogIcon:(string|null), lat:number, lng:number, startedAt:string, lastPing:string, socketId:string}>} */
 const walkers = new Map();
 
@@ -153,6 +202,16 @@ function sanitizeDogColor(v) {
 
 function sanitizeDogIcon(v) {
   return typeof v === "string" && DOG_ICON_RE.test(v) ? v : null;
+}
+
+function sanitizeProfileInput(body) {
+  if (!body || typeof body.dogName !== "string" || !body.dogName.trim()) return null;
+  return {
+    dogName: sanitizeStr(body.dogName, "כלב/ה"),
+    dogBreed: sanitizeStr(body.dogBreed, ""),
+    dogIcon: sanitizeDogIcon(body.dogIcon),
+    dogColor: sanitizeDogColor(body.dogColor)
+  };
 }
 
 function publicList() {
