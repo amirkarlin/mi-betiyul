@@ -2,7 +2,7 @@
 // כדי שהיא תיפתח מהר גם ברשת חלשה. לא נוגע כלל בקריאות ל-Socket.IO או API - אלה תמיד
 // הולכות לרשת, כי המיקום והנתונים חייבים להיות עדכניים ולא מהמטמון.
 
-const CACHE_NAME = "mi-betiyul-shell-v1";
+const CACHE_NAME = "mi-betiyul-shell-v2";
 const SHELL_FILES = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -56,18 +56,17 @@ self.addEventListener("fetch", (event) => {
   if (url.pathname.startsWith("/socket.io/")) return;
   if (event.request.method !== "GET") return;
 
+  // עדיפות לרשת (network-first): כך גרסה חדשה שפורסמה מגיעה מיד בפתיחה הבאה,
+  // ולא רק אחרי ריענון שני. אם אין רשת (למשל אופליין), חוזרים לגרסה השמורה במטמון.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          }
-          return res;
-        })
-        .catch(() => cached);
-      return cached || network;
-    })
+    fetch(event.request)
+      .then((res) => {
+        if (res.ok) {
+          const clone = res.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        }
+        return res;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
