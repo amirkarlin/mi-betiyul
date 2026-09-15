@@ -120,7 +120,12 @@
   .gate .err{ background:var(--danger-bg); color:var(--danger-text); border-radius:var(--radius-sm);
     padding:10px 14px; font-size:.85rem; line-height:1.5; }
 
-  .status-card{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:22px;
+  .status-card{ background-color:var(--surface);
+    background-image: linear-gradient(color-mix(in srgb, var(--surface) 58%, transparent), color-mix(in srgb, var(--surface) 58%, transparent)), url("/bg-pattern.jpg");
+    background-size: cover, 160px 160px;
+    background-position: center, center;
+    background-repeat: no-repeat, repeat;
+    border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:22px;
     display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
   .status-line{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-muted); }
   .conn-line{ display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--text-muted); opacity:.8; }
@@ -152,7 +157,8 @@
     background-position: center, center;
     background-repeat: no-repeat, repeat;
     border-radius:var(--radius-md); padding:16px; }
-  .profile-form .field label{ display:block; font-size:.78rem; color:var(--text-muted); margin-bottom:4px; font-weight:600; }
+  .profile-form .field label{ display:inline-block; font-size:.78rem; color:var(--text-muted); margin-bottom:6px; font-weight:600;
+    background:var(--surface); border-radius:7px; padding:3px 9px; box-shadow:var(--shadow); }
   .profile-form input, .profile-form select{ width:100%; border:1.5px solid var(--ring-strong); background:var(--surface); color:var(--text);
     border-radius:var(--radius-sm); padding:10px 12px; font-size:.95rem; font-family:inherit; }
   .profile-form .row{display:flex;gap:10px;}
@@ -210,7 +216,8 @@
   .account-login-row .btn{ padding:10px 18px; font-size:.86rem; flex:0 0 auto; }
 
   .theme-picker{ display:flex; flex-direction:column; align-items:center; gap:6px; }
-  .theme-picker .theme-label{ font-size:.72rem; color:var(--text-muted); font-weight:600; }
+  .theme-picker .theme-label{ font-size:.72rem; color:var(--text-muted); font-weight:600;
+    background:var(--surface); border-radius:7px; padding:3px 9px; box-shadow:var(--shadow); }
   .theme-swatches{ display:flex; gap:8px; flex-wrap:wrap; justify-content:center; }
   .theme-swatch{ width:26px;height:26px;border-radius:50%; border:2px solid transparent; cursor:pointer;
     box-shadow:inset 0 0 0 1px rgba(0,0,0,.14); padding:0; }
@@ -303,7 +310,7 @@
           <select id="dogBreed"></select></div>
         <div class="field"><label>תמונת הכלב</label><div id="iconPicker"></div>
           <div class="field-error" id="iconError" hidden>בחרו תמונה של הכלב כדי להמשיך</div></div>
-        <button type="submit" class="btn btn-primary">התחילו את הטיול</button>
+        <button type="submit" class="btn btn-primary" id="profileSubmitBtn">התחילו את הטיול</button>
       </form>
 
       <div class="conn-line"><span class="conn-dot" id="connDot"></span><span id="connLabel">מתחברים לשרת…</span></div>
@@ -365,7 +372,7 @@
     gate:$("gate"), gateErr:$("gateErr"), enableLocationBtn:$("enableLocationBtn"),
     mainApp:$("mainApp"), editProfileBtn:$("editProfileBtn"),
     statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"),
-    walkTimer:$("walkTimer"), profileForm:$("profileForm"), dogName:$("dogName"), dogBreed:$("dogBreed"),
+    walkTimer:$("walkTimer"), profileForm:$("profileForm"), profileSubmitBtn:$("profileSubmitBtn"), dogName:$("dogName"), dogBreed:$("dogBreed"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
@@ -599,18 +606,46 @@
       });
     });
   }
+  // ביטול הרשמה: גם מבטלים את המנוי בדפדפן וגם מודיעים לשרת שלא לשלוח יותר -
+  // כדי שכפתור ההתראות יהיה כפתור הפעלה/כיבוי אמיתי ולא רק "הפעלה" חד-כיוונית
+  function unsubscribeFromPush(){
+    return navigator.serviceWorker.ready.then(function(reg){
+      return reg.pushManager.getSubscription();
+    }).then(function(sub){
+      return (sub ? sub.unsubscribe() : Promise.resolve()).then(function(){
+        return fetch("/api/unsubscribe", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({ id: myId })
+        });
+      });
+    });
+  }
   function refreshNotifyBtn(){
     if(!pushSupported()){ els.notifyBtn.hidden = true; return; }
-    if(Notification.permission === "granted"){
-      els.notifyBtn.textContent = "🔔 התראות פעילות";
-    } else if(Notification.permission === "denied"){
-      els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן";
-    } else {
-      els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
+    if(Notification.permission === "denied"){
+      els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן"; return;
     }
+    if(Notification.permission !== "granted"){
+      els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים"; return;
+    }
+    navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); })
+      .then(function(sub){ els.notifyBtn.textContent = sub ? "🔕 כיבוי התראות" : "🔔 הפעילו התראות מחברים"; })
+      .catch(function(){ els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים"; });
   }
   els.notifyBtn.addEventListener("click", function(){
     if(!pushSupported()){ showToast("הדפדפן הזה לא תומך בהתראות."); return; }
+    if(Notification.permission === "granted"){
+      // כבר יש הרשאה - הכפתור הזה משמש עכשיו לכיבוי/הפעלה מחדש של המנוי בפועל
+      navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); })
+        .then(function(sub){
+          if(sub){
+            return unsubscribeFromPush().then(function(){ refreshNotifyBtn(); showToast("התראות כובו."); });
+          }
+          return subscribeToPush().then(function(){ refreshNotifyBtn(); showToast("התראות הופעלו! 🔔"); });
+        })
+        .catch(function(){ showToast("לא הצלחנו לעדכן את ההתראות. נסו שוב."); });
+      return;
+    }
     if(Notification.permission === "denied"){
       showToast("ההתראות חסומות - יש לאשר אותן בהגדרות הדפדפן עבור האתר."); return;
     }
@@ -618,7 +653,7 @@
     Notification.requestPermission().then(function(perm){
       refreshNotifyBtn();
       if(perm !== "granted") return;
-      subscribeToPush().then(function(){ showToast("התראות הופעלו! 🔔"); })
+      subscribeToPush().then(function(){ refreshNotifyBtn(); showToast("התראות הופעלו! 🔔"); })
         .catch(function(){ showToast("לא הצלחנו להפעיל התראות. נסו שוב."); });
     });
   });
@@ -705,6 +740,20 @@
     els.enableLocationBtn.disabled = false; els.enableLocationBtn.textContent = "אפשרו גישה למיקום";
   }
 
+  // ===== אם הדפדפן כבר אישר גישה למיקום בעבר (למשל בביקור קודם), מדלגים על מסך
+  // הבקשה ונכנסים ישר לאפליקציה - כדי שלא יצטרכו "לפתוח" את המיקום מחדש בכל פעם =====
+  function tryAutoLocation(){
+    if(!("geolocation" in navigator) || !("permissions" in navigator) || !navigator.permissions || !navigator.permissions.query) return;
+    navigator.permissions.query({ name: "geolocation" }).then(function(status){
+      if(status.state !== "granted") return;
+      navigator.geolocation.getCurrentPosition(function(pos){
+        myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+        startApp();
+      }, function(){ /* נכשל - נשאיר את שער הבקשה הרגיל למקרה חריג */ }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+    }).catch(function(){});
+  }
+  tryAutoLocation();
+
   function startApp(){
     els.gate.hidden = true; els.mainApp.hidden = false; els.editProfileBtn.hidden = false;
 
@@ -784,11 +833,19 @@
 
   var formPurpose = null;
 
+  // כפתור השליחה של טופס הפרופיל משמש גם להתחלת טיול וגם לעריכת פרופיל בלבד -
+  // כדי שלא יהיה מבלבל, הטקסט שלו משתנה לפי ההקשר (כפתור "התחלת הטיול" האמיתי
+  // נמצא כבר בעיגול הגדול, אז כשעורכים בלבד מציגים "סגור" במקום)
+  function updateProfileSubmitLabel(){
+    if(!els.profileSubmitBtn) return;
+    els.profileSubmitBtn.textContent = formPurpose === "start" ? "התחילו את הטיול" : "סגור";
+  }
+
   els.ctaBtn.addEventListener("click", function(){
     if(isWalking){ stopWalk(); return; }
     var profile = getProfile();
     if(!profile || !profile.dogName){
-      formPurpose = "start"; els.profileForm.hidden = false; els.dogName.focus(); return;
+      formPurpose = "start"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus(); return;
     }
     startWalk(profile);
   });
@@ -815,7 +872,7 @@
     selectedIcon = p.dogIcon || null;
     selectedColor = p.dogColor || THEME_COLORS[0];
     renderIconPicker();
-    if(els.profileForm.hidden){ formPurpose = "edit"; els.profileForm.hidden = false; els.dogName.focus(); }
+    if(els.profileForm.hidden){ formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus(); }
     else { els.profileForm.hidden = true; formPurpose = null; }
   });
 
