@@ -127,8 +127,10 @@
     background-repeat: no-repeat, repeat;
     border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:22px;
     display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
-  .status-line{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-muted); }
-  .conn-line{ display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--text-muted); opacity:.8; }
+  .status-line{ display:flex; align-items:center; gap:8px; font-size:.85rem; color:var(--text-muted);
+    background:var(--surface); border-radius:999px; padding:7px 16px; box-shadow:var(--shadow); }
+  .conn-line{ display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--text-muted);
+    background:var(--surface); border-radius:999px; padding:5px 12px; box-shadow:var(--shadow); }
   .conn-dot{ width:7px;height:7px;border-radius:50%; background:#9aa89a; }
   .conn-dot.online{ background:var(--live); }
   .live-dot{ width:8px;height:8px;border-radius:50%; background:var(--live); box-shadow:0 0 0 0 var(--live); animation:pulse 1.8s infinite; }
@@ -148,7 +150,8 @@
   /* הטקסט עדיין קיים ב-DOM לנגישות (קוראי מסך) אך חבוי חזותית - העיצוב מגיע מתמונת המדבקה עצמה */
   #ctaLabel, #ctaSub{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0);
     white-space:nowrap; }
-  .walk-timer{ font-variant-numeric:tabular-nums; font-size:.95rem; font-weight:600; color:var(--text-muted); }
+  .walk-timer{ font-variant-numeric:tabular-nums; font-size:.95rem; font-weight:600; color:var(--text-muted);
+    background:var(--surface); border-radius:999px; padding:6px 16px; box-shadow:var(--shadow); }
 
   .profile-form{ width:100%; display:flex; flex-direction:column; gap:10px;
     background-color:var(--surface-2);
