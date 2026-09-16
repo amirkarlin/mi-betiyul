@@ -205,8 +205,13 @@
   .link-btn:hover{ text-decoration:underline; }
   .field-error{ color:var(--danger-text); font-size:.78rem; margin-top:6px; }
 
-  .account-panel{ display:flex; flex-direction:column; gap:16px; background:var(--surface-2);
-    border-radius:var(--radius-md); padding:16px; width:100%; }
+  .account-panel{ position:relative; display:flex; flex-direction:column; gap:16px; background:var(--surface-2);
+    border-radius:var(--radius-md); padding:34px 16px 16px; width:100%; box-sizing:border-box; }
+  .account-close-btn{ position:absolute; top:8px; left:8px; appearance:none; border:none; cursor:pointer;
+    width:26px;height:26px; border-radius:50%; background:var(--surface); color:var(--text-muted);
+    font-size:.8rem; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow); z-index:1; }
+  .account-close-btn:hover{ color:var(--text); }
   .account-dog-summary{ display:flex; align-items:center; gap:12px; background:var(--surface);
     border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; width:100%; box-sizing:border-box; }
   .account-dog-summary .dog-badge{ width:48px;height:48px;border-width:3px; flex:0 0 auto; }
@@ -333,6 +338,7 @@
       <button type="button" class="link-btn" id="accountBtn">🔑 החשבון שלי</button>
 
       <div class="account-panel" id="accountPanel" hidden>
+        <button type="button" class="account-close-btn" id="accountCloseBtn" aria-label="סגירה">✕</button>
         <div class="account-dog-summary" id="accountDogSummary" hidden>
           <div id="accountDogBadgeWrap"></div>
           <div class="account-dog-info">
@@ -405,6 +411,7 @@
     accountCodeValue:$("accountCodeValue"), copyCodeBtn:$("copyCodeBtn"),
     accountDogSummary:$("accountDogSummary"), accountDogBadgeWrap:$("accountDogBadgeWrap"),
     accountDogName:$("accountDogName"), accountThemeSwatch:$("accountThemeSwatch"), accountEditBtn:$("accountEditBtn"),
+    accountCloseBtn:$("accountCloseBtn"),
     loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError")
   };
 
@@ -919,6 +926,9 @@
       els.accountPanel.hidden = true;
       openEditProfile();
     });
+  }
+  if(els.accountCloseBtn){
+    els.accountCloseBtn.addEventListener("click", function(){ els.accountPanel.hidden = true; });
   }
 
   function startWalk(profile){
