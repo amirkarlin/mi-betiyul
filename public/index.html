@@ -199,13 +199,25 @@
     box-sizing:border-box; background:var(--surface); display:flex; align-items:center; justify-content:center;
     box-shadow:0 2px 8px rgba(0,0,0,.18); }
   .icon-ring img{ width:100%;height:100%;border-radius:50%;object-fit:cover;display:block; }
-  .link-btn{ appearance:none; border:none; background:none; cursor:pointer; color:var(--primary);
-    font-weight:700; font-size:.82rem; font-family:inherit; padding:4px 8px; }
+  .link-btn{ appearance:none; border:none; cursor:pointer; color:var(--primary);
+    font-weight:700; font-size:.82rem; font-family:inherit;
+    background:var(--surface); border-radius:999px; padding:7px 14px; box-shadow:var(--shadow); }
   .link-btn:hover{ text-decoration:underline; }
   .field-error{ color:var(--danger-text); font-size:.78rem; margin-top:6px; }
 
   .account-panel{ display:flex; flex-direction:column; gap:16px; background:var(--surface-2);
     border-radius:var(--radius-md); padding:16px; width:100%; }
+  .account-dog-summary{ display:flex; align-items:center; gap:12px; background:var(--surface);
+    border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; width:100%; box-sizing:border-box; }
+  .account-dog-summary .dog-badge{ width:48px;height:48px;border-width:3px; flex:0 0 auto; }
+  .account-dog-summary .dog-badge svg{ width:32px;height:32px; }
+  .account-dog-info{ flex:1; min-width:0; display:flex; flex-direction:column; gap:5px; }
+  .account-dog-name{ font-weight:700; font-size:.98rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .account-dog-theme{ display:flex; align-items:center; gap:6px; font-size:.72rem; color:var(--text-muted); }
+  .account-theme-swatch{ width:14px;height:14px;border-radius:50%; display:inline-block; flex:0 0 auto;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.15); }
+  .account-dog-summary .link-btn{ flex:0 0 auto; padding:7px 12px; font-size:.76rem; box-shadow:none;
+    background:var(--surface-2); }
   .account-code-box{ display:flex; flex-direction:column; align-items:center; gap:7px; text-align:center; }
   .account-code-label{ font-size:.78rem; color:var(--text-muted); font-weight:600; }
   .account-code-value{ font-size:1.3rem; font-weight:800; letter-spacing:1.5px; background:var(--surface);
@@ -321,6 +333,14 @@
       <button type="button" class="link-btn" id="accountBtn">🔑 החשבון שלי</button>
 
       <div class="account-panel" id="accountPanel" hidden>
+        <div class="account-dog-summary" id="accountDogSummary" hidden>
+          <div id="accountDogBadgeWrap"></div>
+          <div class="account-dog-info">
+            <div class="account-dog-name" id="accountDogName"></div>
+            <div class="account-dog-theme"><span class="account-theme-swatch" id="accountThemeSwatch"></span><span>ערכת נושא</span></div>
+          </div>
+          <button type="button" class="link-btn" id="accountEditBtn">✏️ עריכה</button>
+        </div>
         <div class="account-code-box" id="accountCodeBox" hidden>
           <div class="account-code-label">הקוד האישי שלך</div>
           <div class="account-code-value" id="accountCodeValue">----‑----</div>
@@ -383,6 +403,8 @@
     notifyBtn:$("notifyBtn"), toast:$("toast"),
     accountBtn:$("accountBtn"), accountPanel:$("accountPanel"), accountCodeBox:$("accountCodeBox"),
     accountCodeValue:$("accountCodeValue"), copyCodeBtn:$("copyCodeBtn"),
+    accountDogSummary:$("accountDogSummary"), accountDogBadgeWrap:$("accountDogBadgeWrap"),
+    accountDogName:$("accountDogName"), accountThemeSwatch:$("accountThemeSwatch"), accountEditBtn:$("accountEditBtn"),
     loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError")
   };
 
@@ -503,6 +525,17 @@
     if(els.accountCodeBox){
       els.accountCodeBox.hidden = !code;
       if(code) els.accountCodeValue.textContent = code;
+    }
+    if(els.accountDogSummary){
+      var p = getProfile();
+      if(p && p.dogName){
+        els.accountDogSummary.hidden = false;
+        els.accountDogBadgeWrap.innerHTML = dogBadgeHtml(galleryImageSrc(p.dogIcon), "me", p.dogColor);
+        els.accountDogName.textContent = p.dogName;
+        els.accountThemeSwatch.style.background = p.dogColor || THEME_COLORS[0];
+      } else {
+        els.accountDogSummary.hidden = true;
+      }
     }
   }
 
@@ -868,16 +901,25 @@
     formPurpose = null;
   });
 
-  els.editProfileBtn.addEventListener("click", function(){
+  function openEditProfile(){
     var p = getProfile() || {};
     els.dogName.value = p.dogName || "";
     els.dogBreed.value = p.dogBreed || "";
     selectedIcon = p.dogIcon || null;
     selectedColor = p.dogColor || THEME_COLORS[0];
     renderIconPicker();
-    if(els.profileForm.hidden){ formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus(); }
+    formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus();
+  }
+  els.editProfileBtn.addEventListener("click", function(){
+    if(els.profileForm.hidden){ openEditProfile(); }
     else { els.profileForm.hidden = true; formPurpose = null; }
   });
+  if(els.accountEditBtn){
+    els.accountEditBtn.addEventListener("click", function(){
+      els.accountPanel.hidden = true;
+      openEditProfile();
+    });
+  }
 
   function startWalk(profile){
     isWalking = true;
