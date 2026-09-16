@@ -104,6 +104,18 @@ function getIncomingFavorites(id) {
   });
   return result;
 }
+// ===== מקטע "החברים שלי" בלקוח צריך שם/תמונה/צבע גם לכלבים שאינם בטיול כרגע -
+// המידע הזה נלקח מהפרופיל השמור (מסונכרן אוטומטית בכל פעם שמשתמש/ת שומר/ת פרופיל) =====
+function getProfileSummaries(ids) {
+  const result = {};
+  ids.forEach((id) => {
+    const p = store.profiles[id];
+    if (p) {
+      result[id] = { dogName: p.dogName, dogBreed: p.dogBreed || "", dogIcon: p.dogIcon || null, dogColor: p.dogColor || DEFAULT_DOG_COLOR };
+    }
+  });
+  return result;
+}
 function sanitizePushSubscription(sub) {
   if (!sub || typeof sub !== "object") return null;
   if (typeof sub.endpoint !== "string" || sub.endpoint.length < 10 || sub.endpoint.length > 600) return null;
@@ -301,13 +313,15 @@ io.on("connection", (socket) => {
   socket.on("favorites:sync", (data) => {
     const id = data && data.id;
     if (!isValidId(id)) return;
-    socket.emit("favorites:state", { outgoing: getOutgoingFavorites(id), incoming: getIncomingFavorites(id) });
+    const outgoing = getOutgoingFavorites(id);
+    socket.emit("favorites:state", { outgoing, incoming: getIncomingFavorites(id), profiles: getProfileSummaries(outgoing) });
   });
 
   socket.on("favorite:toggle", (data) => {
     if (!data || !isValidId(data.id) || !isValidId(data.targetId) || data.id === data.targetId) return;
     setFavorite(data.id, data.targetId, !!data.on);
-    socket.emit("favorites:state", { outgoing: getOutgoingFavorites(data.id), incoming: getIncomingFavorites(data.id) });
+    const outgoing = getOutgoingFavorites(data.id);
+    socket.emit("favorites:state", { outgoing, incoming: getIncomingFavorites(data.id), profiles: getProfileSummaries(outgoing) });
   });
 
   // ===== הזמנת "בוא/י לגינה" - דורשת כוכב הדדי, נשלחת דרך Push גם אם היעד/ת מנותק/ת =====

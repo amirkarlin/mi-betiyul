@@ -387,6 +387,12 @@
       <div class="nearby-list" id="nearbyList"></div>
     </div>
 
+    <div class="panel-title"><h2>החברים שלי</h2><span id="friendsCount"></span></div>
+    <div id="friendsContainer">
+      <div class="empty-note" id="friendsEmptyNote">עדיין אין לכם חברים מועדפים. לחצו על הכוכב ☆ ליד כלב/ה ב"בטיול עכשיו" כדי להוסיף אותם לכאן.</div>
+      <div class="nearby-list" id="friendsList"></div>
+    </div>
+
     <footer class="note">
       המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
     </footer>
@@ -414,6 +420,7 @@
     profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
+    friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
     installBanner:$("installBanner"), installBannerText:$("installBannerText"), installClose:$("installClose"),
     notifyBtn:$("notifyBtn"), toast:$("toast"),
@@ -763,6 +770,7 @@
   // ===== מועדפים (כוכב הדדי) והזמנת "בוא/י לגינה" =====
   var myFavoritesOut = []; // כלבים שאני סימנתי בכוכב
   var myFavoritesIn = [];  // כלבים שסימנו אותי בכוכב
+  var myFavoriteProfiles = {}; // שם/תמונה/צבע לכלבים שסימנתי, גם כשהם לא בטיול כרגע
   function isStarred(id){ return myFavoritesOut.indexOf(id) !== -1; }
   function isMutualWith(id){ return isStarred(id) && myFavoritesIn.indexOf(id) !== -1; }
   var INVITE_ERROR_MESSAGES = {
@@ -835,12 +843,13 @@
       var next = {};
       (list||[]).forEach(function(w){ if(w.id !== myId) next[w.id] = w; });
       latestDocs = next;
-      renderRadar(); renderList();
+      renderRadar(); renderList(); renderFriends();
     });
     socket.on("favorites:state", function(state){
       myFavoritesOut = (state && state.outgoing) || [];
       myFavoritesIn = (state && state.incoming) || [];
-      renderList();
+      myFavoriteProfiles = (state && state.profiles) || {};
+      renderList(); renderFriends();
     });
     socket.on("invite:result", function(res){
       if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }
@@ -1093,6 +1102,55 @@
       });
     });
     Array.prototype.forEach.call(els.nearbyList.querySelectorAll("[data-invite]"), function(btn){
+      btn.addEventListener("click", function(){
+        if(!socket) return;
+        socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-invite") });
+      });
+    });
+  }
+
+  // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, תמיד מוצגים כאן גם כשהם לא בטיול כרגע =====
+  function renderFriends(){
+    if(!els.friendsList) return;
+    var ids = myFavoritesOut;
+    els.friendsCount.textContent = ids.length ? (ids.length + (ids.length===1 ? " מועדף/ת" : " מועדפים")) : "";
+    if(!ids.length){
+      els.friendsEmptyNote.hidden=false; els.friendsList.hidden=true; els.friendsList.innerHTML=""; return;
+    }
+    els.friendsEmptyNote.hidden=true; els.friendsList.hidden=false;
+    els.friendsList.innerHTML = ids.map(function(id){
+      var live = latestDocs[id];
+      var saved = myFavoriteProfiles[id];
+      var data = live ? live.data : saved;
+      var name = (data && data.dogName) || "כלב/ה";
+      var breed = data && data.dogBreed;
+      var icon = data && data.dogIcon;
+      var color = data && data.dogColor;
+      var mutual = isMutualWith(id);
+      var statusChip = live ? '<span class="chip dist">🟢 בטיול עכשיו</span>' : '<span class="chip">לא בטיול כרגע</span>';
+      return '<div class="walker-card">' +
+        '<div class="wc-row">' +
+        dogBadgeHtml(galleryImageSrc(icon), "list", color) +
+        '<div class="info"><div class="name">'+escapeHtml(name)+'</div>' +
+        (breed ? '<div class="dog">'+escapeHtml(breed)+'</div>' : '') +
+        '</div>' +
+        '<div class="meta">'+statusChip+'</div>' +
+        '</div>' +
+        '<div class="wc-actions">' +
+          '<button type="button" class="star-btn active" data-star="'+id+'" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
+          (mutual ? '<button type="button" class="invite-btn" data-invite="'+id+'">🐾 בוא/י לגינה</button>' : '') +
+        '</div>' +
+      '</div>';
+    }).join("");
+
+    Array.prototype.forEach.call(els.friendsList.querySelectorAll("[data-star]"), function(btn){
+      btn.addEventListener("click", function(){
+        if(!socket) return;
+        var id = btn.getAttribute("data-star");
+        socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
+      });
+    });
+    Array.prototype.forEach.call(els.friendsList.querySelectorAll("[data-invite]"), function(btn){
       btn.addEventListener("click", function(){
         if(!socket) return;
         socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-invite") });
