@@ -275,6 +275,23 @@
   .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
     text-align:center; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
 
+  .walks-summary-card{ appearance:none; border:none; cursor:pointer; width:100%; box-sizing:border-box;
+    display:flex; align-items:center; gap:14px; text-align:right; font-family:inherit;
+    background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:16px 18px;
+    color:var(--text); margin-bottom:12px; }
+  .walks-summary-top{ display:flex; flex-direction:column; align-items:center; line-height:1.15; flex:0 0 auto; }
+  .walks-summary-number{ font-size:1.6rem; font-weight:800; color:var(--primary); }
+  .walks-summary-label{ font-size:.68rem; color:var(--text-muted); font-weight:600; }
+  .walks-summary-sub{ flex:1; font-size:.86rem; color:var(--text-muted); }
+  .walks-summary-arrow{ font-size:1rem; color:var(--text-muted); transition:transform .15s ease; flex:0 0 auto; }
+  .walks-summary-card[aria-expanded="true"] .walks-summary-arrow{ transform:rotate(180deg); }
+  .walks-log{ margin-top:-2px; }
+  .walk-entry{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; }
+  .walk-entry .walk-date{ font-weight:700; font-size:.88rem; }
+  .walk-entry .walk-duration{ font-size:.82rem; font-weight:700; color:var(--primary); white-space:nowrap;
+    background:color-mix(in srgb, var(--primary) 14%, transparent); border-radius:999px; padding:5px 12px; }
+
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
@@ -393,6 +410,20 @@
       <div class="nearby-list" id="friendsList"></div>
     </div>
 
+    <div class="panel-title"><h2>הטיולים שלי</h2><span></span></div>
+    <button type="button" class="walks-summary-card" id="walksSummaryBtn" aria-expanded="false">
+      <span class="walks-summary-top">
+        <span class="walks-summary-number" id="walksSummaryCount">0</span>
+        <span class="walks-summary-label">טיולים</span>
+      </span>
+      <span class="walks-summary-sub" id="walksSummarySub">עדיין אין טיולים שמורים</span>
+      <span class="walks-summary-arrow" id="walksSummaryArrow">▾</span>
+    </button>
+    <div class="walks-log" id="walksLog" hidden>
+      <div class="empty-note" id="walksEmptyNote">עדיין אין טיולים שמורים. אחרי שתסיימו טיול הוא יופיע כאן.</div>
+      <div class="nearby-list" id="walksList"></div>
+    </div>
+
     <footer class="note">
       המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
     </footer>
@@ -421,6 +452,8 @@
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"),
+    walksSummaryBtn:$("walksSummaryBtn"), walksSummaryCount:$("walksSummaryCount"), walksSummarySub:$("walksSummarySub"),
+    walksLog:$("walksLog"), walksEmptyNote:$("walksEmptyNote"), walksList:$("walksList"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
     installBanner:$("installBanner"), installBannerText:$("installBannerText"), installClose:$("installClose"),
     notifyBtn:$("notifyBtn"), toast:$("toast"),
@@ -767,6 +800,48 @@
       });
   });
 
+  // ===== "הטיולים שלי" - יומן משכי טיולים =====
+  var myWalkHistory = []; // {startedAt, endedAt, durationMin}, חדש לישן
+  function fmtWalkDuration(min){
+    if(min < 60) return min + ' דק׳';
+    var h = Math.floor(min/60), m = min%60;
+    return h + (h===1?' שעה':' שעות') + (m ? ' ו-'+m+' דק׳' : '');
+  }
+  function fmtWalkWhen(iso){
+    var d = new Date(iso);
+    if(isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('he-IL', {day:'numeric', month:'long'}) + ' · ' +
+      d.toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+  }
+  function renderWalks(){
+    if(!els.walksSummaryBtn) return;
+    var entries = myWalkHistory;
+    els.walksSummaryCount.textContent = entries.length;
+    if(entries.length){
+      var totalMin = entries.reduce(function(sum, e){ return sum + (e.durationMin || 0); }, 0);
+      els.walksSummarySub.textContent = "סה״כ " + fmtWalkDuration(totalMin) + " ביחד";
+    } else {
+      els.walksSummarySub.textContent = "עדיין אין טיולים שמורים";
+    }
+    if(!entries.length){
+      els.walksEmptyNote.hidden = false; els.walksList.hidden = true; els.walksList.innerHTML = ""; return;
+    }
+    els.walksEmptyNote.hidden = true; els.walksList.hidden = false;
+    els.walksList.innerHTML = entries.map(function(e){
+      return '<div class="walk-entry">' +
+        '<div class="walk-date">'+escapeHtml(fmtWalkWhen(e.startedAt))+'</div>' +
+        '<div class="walk-duration">'+escapeHtml(fmtWalkDuration(e.durationMin || 0))+'</div>' +
+      '</div>';
+    }).join("");
+  }
+  if(els.walksSummaryBtn){
+    els.walksSummaryBtn.addEventListener("click", function(){
+      var expanded = els.walksSummaryBtn.getAttribute("aria-expanded") === "true";
+      els.walksSummaryBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      els.walksLog.hidden = expanded;
+    });
+  }
+
   // ===== מועדפים (כוכב הדדי) והזמנת "בוא/י לגינה" =====
   var myFavoritesOut = []; // כלבים שאני סימנתי בכוכב
   var myFavoritesIn = [];  // כלבים שסימנו אותי בכוכב
@@ -826,7 +901,7 @@
 
     connectSocket();
     renderRadar(); renderList(); renderCta();
-    renderAccountPanel();
+    renderAccountPanel(); renderWalks();
     var existingProfile = getProfile();
     if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
   }
@@ -836,6 +911,7 @@
     socket.on("connect", function(){
       els.connDot.classList.add("online"); els.connLabel.textContent = "מחובר/ת לשרת";
       socket.emit("favorites:sync", { id: myId });
+      socket.emit("history:sync", { id: myId });
     });
     socket.on("disconnect", function(){ els.connDot.classList.remove("online"); els.connLabel.textContent = "מנותק/ת - מנסה להתחבר מחדש…"; });
     socket.on("walkers:update", function(list){
@@ -849,6 +925,10 @@
       myFavoritesIn = (state && state.incoming) || [];
       myFavoriteProfiles = (state && state.profiles) || {};
       renderList(); renderFriends();
+    });
+    socket.on("history:state", function(state){
+      myWalkHistory = (state && state.entries) || [];
+      renderWalks();
     });
     socket.on("invite:result", function(res){
       if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }

@@ -48,10 +48,11 @@ function loadStore() {
     return {
       favorites: (parsed && typeof parsed.favorites === "object" && parsed.favorites) || {},
       subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
-      profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {}
+      profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {},
+      walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {}
     };
   } catch (e) {
-    return { favorites: {}, subscriptions: {}, profiles: {} };
+    return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {} };
   }
 }
 const store = loadStore();
@@ -115,6 +116,23 @@ function getProfileSummaries(ids) {
     }
   });
   return result;
+}
+// ===== "הטיולים שלי" - יומן משכי טיולים, נשמר לצמיתות לפי מזהה (שרד גם ריסטארט
+// של השרת, וגם מעבר בין מכשירים דרך הקוד האישי, בדיוק כמו מועדפים ופרופיל) =====
+const MAX_HISTORY_PER_USER = 200; // מגבלה כדי שקובץ הנתונים לא יגדל בלי סוף
+function addWalkHistoryEntry(id, startedAtIso, endedAtIso) {
+  if (!isValidId(id)) return;
+  const startedMs = new Date(startedAtIso).getTime();
+  const endedMs = new Date(endedAtIso).getTime();
+  if (!isFinite(startedMs) || !isFinite(endedMs) || endedMs <= startedMs) return;
+  const durationMin = Math.max(1, Math.round((endedMs - startedMs) / 60000));
+  const list = Array.isArray(store.walkHistory[id]) ? store.walkHistory[id] : [];
+  list.push({ startedAt: startedAtIso, endedAt: endedAtIso, durationMin });
+  store.walkHistory[id] = list.slice(-MAX_HISTORY_PER_USER); // שומרים רק את האחרונים
+  saveStore();
+}
+function getWalkHistory(id) {
+  return Array.isArray(store.walkHistory[id]) ? store.walkHistory[id].slice().reverse() : []; // חדש לישן
 }
 function sanitizePushSubscription(sub) {
   if (!sub || typeof sub !== "object") return null;
@@ -284,6 +302,9 @@ function pruneStale() {
   for (const [id, w] of walkers) {
     if (now - new Date(w.lastPing).getTime() > STALE_MS) {
       walkers.delete(id);
+      // רושמים ליומן הטיולים גם ניתוק שקט (למשל אפליקציה שנסגרה בלי "סיימתי טיול") -
+      // זמן הסיום המשוער הוא ה-ping האחרון שקיבלנו, לא "עכשיו"
+      addWalkHistoryEntry(id, w.startedAt, w.lastPing);
       changed = true;
     }
   }
@@ -336,9 +357,19 @@ io.on("connection", (socket) => {
   socket.on("checkout", (data) => {
     const id = data && typeof data.id === "string" ? data.id : myWalkerId;
     if (id && walkers.has(id)) {
+      const w = walkers.get(id);
       walkers.delete(id);
+      addWalkHistoryEntry(id, w.startedAt, new Date().toISOString());
+      socket.emit("history:state", { entries: getWalkHistory(id) });
       broadcastWalkers();
     }
+  });
+
+  // ===== "הטיולים שלי" - יומן משכי טיולים, נשמר לצמיתות לפי מזהה =====
+  socket.on("history:sync", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id)) return;
+    socket.emit("history:state", { entries: getWalkHistory(id) });
   });
 
   // ===== מועדפים (כוכב) - נשמרים לצמיתות, לא תלויים בהיותך "בטיול" =====
