@@ -153,13 +153,13 @@
   .walk-timer{ font-variant-numeric:tabular-nums; font-size:.95rem; font-weight:600; color:var(--text-muted);
     background:var(--surface); border-radius:999px; padding:6px 16px; box-shadow:var(--shadow); }
 
-  .profile-form{ width:100%; display:flex; flex-direction:column; gap:10px;
+  .profile-form{ position:relative; width:100%; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;
     background-color:var(--surface-2);
     background-image: linear-gradient(color-mix(in srgb, var(--surface-2) 58%, transparent), color-mix(in srgb, var(--surface-2) 58%, transparent)), url("/bg-pattern.jpg");
     background-size: cover, 160px 160px;
     background-position: center, center;
     background-repeat: no-repeat, repeat;
-    border-radius:var(--radius-md); padding:16px; }
+    border-radius:var(--radius-md); padding:34px 16px 16px; }
   .profile-form .field label{ display:inline-block; font-size:.78rem; color:var(--text-muted); margin-bottom:6px; font-weight:600;
     background:var(--surface); border-radius:7px; padding:3px 9px; box-shadow:var(--shadow); }
   .profile-form input, .profile-form select{ width:100%; border:1.5px solid var(--ring-strong); background:var(--surface); color:var(--text);
@@ -207,11 +207,15 @@
 
   .account-panel{ position:relative; display:flex; flex-direction:column; gap:16px; background:var(--surface-2);
     border-radius:var(--radius-md); padding:34px 16px 16px; width:100%; box-sizing:border-box; }
-  .account-close-btn{ position:absolute; top:8px; left:8px; appearance:none; border:none; cursor:pointer;
+  .close-x-btn{ position:absolute; top:8px; left:8px; appearance:none; border:none; cursor:pointer;
     width:26px;height:26px; border-radius:50%; background:var(--surface); color:var(--text-muted);
     font-size:.8rem; line-height:1; display:flex; align-items:center; justify-content:center;
     box-shadow:var(--shadow); z-index:1; }
-  .account-close-btn:hover{ color:var(--text); }
+  .close-x-btn:hover{ color:var(--text); }
+  .dogname-display{ display:flex; align-items:center; justify-content:space-between; gap:10px;
+    background:var(--surface); border-radius:var(--radius-sm); padding:10px 14px; box-shadow:var(--shadow); }
+  .dogname-display .dogname-text{ font-weight:700; font-size:.95rem; }
+  .dogname-display .link-btn{ box-shadow:none; background:var(--surface-2); padding:6px 10px; font-size:.74rem; }
   .account-dog-summary{ display:flex; align-items:center; gap:12px; background:var(--surface);
     border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; width:100%; box-sizing:border-box; }
   .account-dog-summary .dog-badge{ width:48px;height:48px;border-width:3px; flex:0 0 auto; }
@@ -324,7 +328,12 @@
       <div class="walk-timer" id="walkTimer" hidden></div>
 
       <form class="profile-form" id="profileForm" hidden>
+        <button type="button" class="close-x-btn" id="profileCloseBtn" aria-label="סגירה">✕</button>
         <div class="field"><label for="dogName">שם הכלב/ה</label>
+          <div class="dogname-display" id="dogNameDisplay" hidden>
+            <span class="dogname-text" id="dogNameDisplayText"></span>
+            <button type="button" class="link-btn" id="dogNameEditToggle">✏️ עריכה</button>
+          </div>
           <input id="dogName" maxlength="24" placeholder="לדוגמה: באדי" required></div>
         <div class="field"><label for="dogBreed">גזע הכלב</label>
           <select id="dogBreed"></select></div>
@@ -338,7 +347,7 @@
       <button type="button" class="link-btn" id="accountBtn">🔑 החשבון שלי</button>
 
       <div class="account-panel" id="accountPanel" hidden>
-        <button type="button" class="account-close-btn" id="accountCloseBtn" aria-label="סגירה">✕</button>
+        <button type="button" class="close-x-btn" id="accountCloseBtn" aria-label="סגירה">✕</button>
         <div class="account-dog-summary" id="accountDogSummary" hidden>
           <div id="accountDogBadgeWrap"></div>
           <div class="account-dog-info">
@@ -402,6 +411,7 @@
     mainApp:$("mainApp"), editProfileBtn:$("editProfileBtn"),
     statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"),
     walkTimer:$("walkTimer"), profileForm:$("profileForm"), profileSubmitBtn:$("profileSubmitBtn"), dogName:$("dogName"), dogBreed:$("dogBreed"),
+    profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
@@ -878,17 +888,35 @@
 
   // כפתור השליחה של טופס הפרופיל משמש גם להתחלת טיול וגם לעריכת פרופיל בלבד -
   // כדי שלא יהיה מבלבל, הטקסט שלו משתנה לפי ההקשר (כפתור "התחלת הטיול" האמיתי
-  // נמצא כבר בעיגול הגדול, אז כשעורכים בלבד מציגים "סגור" במקום)
+  // נמצא כבר בעיגול הגדול, אז כשעורכים בלבד מציגים "שמור" במקום)
   function updateProfileSubmitLabel(){
     if(!els.profileSubmitBtn) return;
-    els.profileSubmitBtn.textContent = formPurpose === "start" ? "התחילו את הטיול" : "סגור";
+    els.profileSubmitBtn.textContent = formPurpose === "start" ? "התחילו את הטיול" : "שמור";
+  }
+
+  // שם הכלב מוצג כטקסט קבוע (עם אפשרות עריכה) כשעורכים פרופיל קיים,
+  // ותמיד כשדה פתוח למילוי כשמגדירים פרופיל בפעם הראשונה
+  function setDogNameEditable(editable){
+    if(!els.dogNameDisplay) return;
+    if(editable){
+      els.dogNameDisplay.hidden = true;
+      els.dogName.hidden = false;
+      els.dogName.focus();
+    } else {
+      els.dogNameDisplayText.textContent = els.dogName.value || "";
+      els.dogNameDisplay.hidden = false;
+      els.dogName.hidden = true;
+    }
+  }
+  if(els.dogNameEditToggle){
+    els.dogNameEditToggle.addEventListener("click", function(){ setDogNameEditable(true); });
   }
 
   els.ctaBtn.addEventListener("click", function(){
     if(isWalking){ stopWalk(); return; }
     var profile = getProfile();
     if(!profile || !profile.dogName){
-      formPurpose = "start"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus(); return;
+      formPurpose = "start"; els.profileForm.hidden = false; updateProfileSubmitLabel(); setDogNameEditable(true); return;
     }
     startWalk(profile);
   });
@@ -915,12 +943,18 @@
     selectedIcon = p.dogIcon || null;
     selectedColor = p.dogColor || THEME_COLORS[0];
     renderIconPicker();
-    formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel(); els.dogName.focus();
+    formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel();
+    setDogNameEditable(!p.dogName);
   }
   els.editProfileBtn.addEventListener("click", function(){
     if(els.profileForm.hidden){ openEditProfile(); }
     else { els.profileForm.hidden = true; formPurpose = null; }
   });
+  if(els.profileCloseBtn){
+    els.profileCloseBtn.addEventListener("click", function(){
+      els.profileForm.hidden = true; formPurpose = null;
+    });
+  }
   if(els.accountEditBtn){
     els.accountEditBtn.addEventListener("click", function(){
       els.accountPanel.hidden = true;
