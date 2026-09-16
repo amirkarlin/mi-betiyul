@@ -21,7 +21,9 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// התראות Push: מגיעות גם כשהאפליקציה סגורה לגמרי, כל עוד יש הרשמה תקפה (subscription)
+// התראות Push: מגיעות גם כשהאפליקציה סגורה לגמרי, כל עוד יש הרשמה תקפה (subscription).
+// להזמנת "בוא/י לגינה" מוסיפים גם כפתור "יאללה" ישירות בתוך ההתראה, כדי שאפשר יהיה
+// להגיב מבלי לפתוח את האפליקציה בכלל.
 self.addEventListener("push", (event) => {
   let data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { /* התעלמות ממטען לא תקין */ }
@@ -30,15 +32,42 @@ self.addEventListener("push", (event) => {
     body: data.body || "",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
-    tag: "mibetiyul-invite",
+    tag: data.kind === "yalla" ? "mibetiyul-yalla" : "mibetiyul-invite",
     dir: "rtl",
-    lang: "he"
+    lang: "he",
+    data: data
   };
+  if (data.kind === "invite" && data.fromId && data.toId) {
+    options.actions = [{ action: "yalla", title: "יאללה! 🐾" }];
+  }
   event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener("notificationclick", (event) => {
+  const data = event.notification.data || {};
   event.notification.close();
+
+  // לחיצה על כפתור "יאללה" - שולחים תגובה לשרת בלי לפתוח/למקד את האפליקציה בכלל
+  if (event.action === "yalla" && data.fromId && data.toId) {
+    event.waitUntil(
+      fetch("/api/invite-reply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fromId: data.fromId, toId: data.toId })
+      })
+        .then(() => self.registration.showNotification("🐾 שלחתם יאללה!", {
+          body: "עכשיו נשאר רק לצאת לגינה.",
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+          tag: "mibetiyul-yalla-sent",
+          dir: "rtl",
+          lang: "he"
+        }))
+        .catch(() => {})
+    );
+    return;
+  }
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
       for (const client of clientsList) {

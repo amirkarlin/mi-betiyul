@@ -158,6 +158,38 @@ app.post("/api/unsubscribe", (req, res) => {
   res.json({ ok: true });
 });
 
+// ===== תגובת "יאללה" ללחיצה על כפתור בתוך התראת ה-Push עצמה (גם כשהאפליקציה סגורה לגמרי) -
+// שולחת התראת Push חוזרת למי ששלח/ה את ההזמנה המקורית =====
+app.post("/api/invite-reply", (req, res) => {
+  const fromId = req.body && req.body.fromId; // מי ששלח/ה את ההזמנה המקורית - מקבל/ת את ה"יאללה"
+  const toId = req.body && req.body.toId;     // מי שהגיב/ה "יאללה" - היה/הייתה יעד ההזמנה
+  if (!isValidId(fromId) || !isValidId(toId) || fromId === toId) return res.status(400).json({ ok: false });
+  if (!isMutualFavorite(fromId, toId)) return res.status(403).json({ ok: false });
+
+  const toProfile = store.profiles[toId];
+  const toName = (toProfile && toProfile.dogName) || "חבר/ה";
+  const sub = store.subscriptions[fromId];
+  if (sub) {
+    const payload = JSON.stringify({
+      title: "🎉 " + toName + " ענה/תה יאללה!",
+      body: "מתכוננים לצאת לגינה 🐾",
+      kind: "yalla"
+    });
+    webpush.sendNotification(sub, payload).catch((err) => {
+      if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+        delete store.subscriptions[fromId];
+        saveStore();
+      }
+    });
+  }
+  // אם המזמין/ה מחובר/ת כרגע (בטיול פעיל) - גם הודעה מיידית בתוך האפליקציה עצמה
+  const fromWalker = walkers.get(fromId);
+  if (fromWalker && fromWalker.socketId) {
+    io.to(fromWalker.socketId).emit("invite:reply", { dogName: toName });
+  }
+  res.json({ ok: true });
+});
+
 // ===== קוד אישי: שמירת/עדכון הפרופיל בשרת (מחזיר קוד קבוע), והתחברות ממכשיר אחר לפי קוד =====
 app.post("/api/profile", (req, res) => {
   const id = req.body && req.body.id;
@@ -324,7 +356,8 @@ io.on("connection", (socket) => {
     socket.emit("favorites:state", { outgoing, incoming: getIncomingFavorites(data.id), profiles: getProfileSummaries(outgoing) });
   });
 
-  // ===== הזמנת "בוא/י לגינה" - דורשת כוכב הדדי, נשלחת דרך Push גם אם היעד/ת מנותק/ת =====
+  // ===== הזמנת "בוא/י לגינה" - דורשת כוכב הדדי, נשלחת דרך Push גם אם היעד/ת מנותק/ת.
+  // אפשר לשלוח גם בלי להיות בטיול כרגע - השם לכותרת ההתראה נלקח מהפרופיל השמור =====
   socket.on("invite:send", (data) => {
     if (!data || !isValidId(data.id) || !isValidId(data.targetId) || data.id === data.targetId) return;
     const fromId = data.id, toId = data.targetId;
@@ -334,10 +367,8 @@ io.on("connection", (socket) => {
       return;
     }
     const fromWalker = walkers.get(fromId);
-    if (!fromWalker) {
-      socket.emit("invite:result", { ok: false, targetId: toId, reason: "not_walking" });
-      return;
-    }
+    const fromProfile = store.profiles[fromId];
+    const fromName = (fromWalker && fromWalker.dogName) || (fromProfile && fromProfile.dogName) || "חבר/ה מהאפליקציה";
     const sub = store.subscriptions[toId];
     if (!sub) {
       socket.emit("invite:result", { ok: false, targetId: toId, reason: "no_subscription" });
@@ -353,8 +384,11 @@ io.on("connection", (socket) => {
     lastInviteAt.set(cooldownKey, now);
 
     const payload = JSON.stringify({
-      title: "🐾 " + fromWalker.dogName + " מזמינ/ה אותך לגינה!",
-      body: "לחצו כדי לפתוח את מי בטיול ולראות איפה."
+      title: "🐾 " + fromName + " מזמינ/ה אותך לגינה!",
+      body: "לחצו כדי לפתוח את מי בטיול ולראות איפה, או הגיבו ישר מההתראה.",
+      kind: "invite",
+      fromId: fromId,
+      toId: toId
     });
     webpush.sendNotification(sub, payload)
       .then(() => {

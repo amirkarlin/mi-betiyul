@@ -775,7 +775,6 @@
   function isMutualWith(id){ return isStarred(id) && myFavoritesIn.indexOf(id) !== -1; }
   var INVITE_ERROR_MESSAGES = {
     not_mutual: "אפשר להזמין רק כלב/ה שסימנתם בכוכב וגם סימנו אתכם בחזרה.",
-    not_walking: "צריך לצאת לטיול כדי לשלוח הזמנה.",
     no_subscription: "למטייל/ת הזו עדיין אין התראות מופעלות במכשיר שלה/ו.",
     cooldown: "כבר שלחתם הזמנה לאחרונה - אפשר לנסות שוב בעוד כמה דקות.",
     send_failed: "לא הצלחנו לשלוח את ההזמנה. נסו שוב."
@@ -854,6 +853,12 @@
     socket.on("invite:result", function(res){
       if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }
       else { showToast((res && INVITE_ERROR_MESSAGES[res.reason]) || "לא הצלחנו לשלוח את ההזמנה."); }
+    });
+    // אם מי שקיבל/ה את ההזמנה הגיב/ה "יאללה" מתוך ההתראה עצמה, ואנחנו כרגע מחוברים/ות -
+    // מציגים הודעה מיידית בתוך האפליקציה (בנוסף להתראת ה-Push שנשלחת בכל מקרה)
+    socket.on("invite:reply", function(res){
+      var name = (res && res.dogName) || "חבר/ה";
+      showToast("🎉 " + name + " ענה/תה יאללה! מתכוננים לצאת לגינה");
     });
   }
 
