@@ -8,6 +8,7 @@ const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
+const { createClient } = require("@supabase/supabase-js");
 
 const PORT = process.env.PORT || 3000;
 const STALE_MS = 20 * 60 * 1000;      // מטייל שלא עדכן מיקום 20 דק' נחשב לא פעיל
@@ -19,6 +20,28 @@ const DEFAULT_DOG_COLOR = "#8B5A2B";
 const DOG_ICON_RE = /^g([1-9]|1[0-9]|2[0-6])$/; // תמונות הגלריה: g1..g26 (public/dog-icons/g*.png)
 const ID_RE = /^[A-Za-z0-9-]{1,64}$/; // תואם למזהים שנוצרים ב-localStorage בצד הלקוח
 const INVITE_COOLDOWN_MS = 10 * 60 * 1000; // מגבלת קצב: הזמנה אחת לכל זוג כל 10 דק'
+
+// ===== אחסון קבוע חיצוני (Supabase) - חובה כדי לשרוד ריסטארטים של Render =====
+// שירות Web Service בתוכנית החינמית של Render מוחק את כל הדיסק המקומי בכל
+// הפעלה מחדש/שינה/דיפלוי (אין דיסק קבוע בתוכנית החינמית). לכן קבצי data.json/vapid.json
+// המקומיים משמשים רק כגיבוי לזמן ריצה וכ-fallback כשאין Supabase מוגדר - מקור האמת
+// האמיתי, שבאמת שורד ריסטארט, הוא טבלת kv_store ב-Supabase.
+// יוצרים פרויקט חינמי ב-supabase.com, מריצים את ה-SQL הבא בעורך ה-SQL שלו:
+//   create table if not exists kv_store (
+//     key text primary key,
+//     value jsonb not null,
+//     updated_at timestamptz not null default now()
+//   );
+// ואז מגדירים ב-Render (Environment) את SUPABASE_URL ו-SUPABASE_SERVICE_KEY
+// (המפתח מסוג service_role מתוך Project Settings > API בפרויקט ב-Supabase).
+const SUPABASE_URL = process.env.SUPABASE_URL || "";
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || "";
+const supabase = (SUPABASE_URL && SUPABASE_SERVICE_KEY)
+  ? createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+  : null;
+if (!supabase) {
+  console.warn("Supabase לא מוגדר (SUPABASE_URL/SUPABASE_SERVICE_KEY) - האחסון יתאפס בכל הפעלה מחדש של השרת.");
+}
 
 // ===== התראות Push: מפתחות VAPID (נוצרים פעם אחת ונשמרים לקובץ כדי שהמנויים הקיימים
 // של המשתמשים לא יתבטלו בכל הפעלה מחדש של השרת) =====
@@ -36,21 +59,23 @@ function loadOrCreateVapidKeys() {
   }
   return keys;
 }
-const VAPID_KEYS = loadOrCreateVapidKeys();
+let VAPID_KEYS = loadOrCreateVapidKeys();
 webpush.setVapidDetails("mailto:mi-betiyul@example.com", VAPID_KEYS.publicKey, VAPID_KEYS.privateKey);
 
 // ===== אחסון פשוט מבוסס קובץ למועדפים ולמנויי Push - צריך לשרוד ריסטארט של השרת,
 // בניגוד לרשימת המטיילים הפעילה (walkers) שמותר לה להתאפס =====
 const DATA_FILE = path.join(__dirname, "data.json");
+function normalizeStoreShape(parsed) {
+  return {
+    favorites: (parsed && typeof parsed.favorites === "object" && parsed.favorites) || {},
+    subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
+    profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {},
+    walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {}
+  };
+}
 function loadStore() {
   try {
-    const parsed = JSON.parse(fs.readFileSync(DATA_FILE, "utf8"));
-    return {
-      favorites: (parsed && typeof parsed.favorites === "object" && parsed.favorites) || {},
-      subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
-      profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {},
-      walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {}
-    };
+    return normalizeStoreShape(JSON.parse(fs.readFileSync(DATA_FILE, "utf8")));
   } catch (e) {
     return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {} };
   }
@@ -61,6 +86,12 @@ function saveStore() {
     fs.writeFileSync(DATA_FILE, JSON.stringify(store));
   } catch (e) {
     console.error("שגיאה בשמירת data.json:", e);
+  }
+  if (supabase) {
+    supabase.from("kv_store")
+      .upsert({ key: "app_data", value: store, updated_at: new Date().toISOString() })
+      .then(({ error }) => { if (error) console.error("שגיאה בשמירת הנתונים ל-Supabase:", error.message); })
+      .catch((e) => console.error("שגיאה בשמירת הנתונים ל-Supabase:", e.message));
   }
 }
 
@@ -440,6 +471,42 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log("מי בטיול? מאזין על פורט " + PORT);
+// ===== סנכרון עם Supabase (אם מוגדר) לפני שהשרת מתחיל לקבל בקשות - כך אנחנו תמיד
+// מתחילים עם הנתונים האמיתיים והמפתחות האמיתיים, ולא עם ברירת מחדל ריקה/חדשה =====
+async function bootstrapPersistence() {
+  if (!supabase) return; // אין Supabase מוגדר - ממשיכים עם הקבצים המקומיים (data.json/vapid.json) כרגיל
+
+  try {
+    const { data: vapidRow, error: vapidErr } = await supabase
+      .from("kv_store").select("value").eq("key", "vapid").maybeSingle();
+    if (vapidErr) throw vapidErr;
+    if (vapidRow && vapidRow.value && vapidRow.value.publicKey && vapidRow.value.privateKey) {
+      VAPID_KEYS = vapidRow.value;
+      webpush.setVapidDetails("mailto:mi-betiyul@example.com", VAPID_KEYS.publicKey, VAPID_KEYS.privateKey);
+    } else {
+      await supabase.from("kv_store").upsert({ key: "vapid", value: VAPID_KEYS, updated_at: new Date().toISOString() });
+    }
+  } catch (e) {
+    console.error("שגיאה בסנכרון מפתחות VAPID עם Supabase - ממשיכים עם המפתחות המקומיים:", e.message);
+  }
+
+  try {
+    const { data: storeRow, error: storeErr } = await supabase
+      .from("kv_store").select("value").eq("key", "app_data").maybeSingle();
+    if (storeErr) throw storeErr;
+    if (storeRow && storeRow.value) {
+      Object.assign(store, normalizeStoreShape(storeRow.value));
+      console.log("הנתונים (מועדפים/התראות/פרופילים/טיולים) נטענו בהצלחה מ-Supabase.");
+    } else {
+      saveStore(); // אין עדיין נתונים ב-Supabase (הפעלה ראשונה) - נאתחל שם עם מה שיש לנו מקומית
+    }
+  } catch (e) {
+    console.error("שגיאה בטעינת הנתונים מ-Supabase - ממשיכים עם הקובץ המקומי:", e.message);
+  }
+}
+
+bootstrapPersistence().finally(() => {
+  server.listen(PORT, () => {
+    console.log("מי בטיול? מאזין על פורט " + PORT);
+  });
 });
