@@ -8,6 +8,7 @@ const http = require("http");
 const express = require("express");
 const { Server } = require("socket.io");
 const webpush = require("web-push");
+const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 const PORT = process.env.PORT || 3000;
@@ -170,10 +171,27 @@ function getWalkHistory(id) {
 // ===== "התראות שקיבלתי" - יומן הודעות (הזמנות/תגובות יאללה) לפי מזהה, נשמר לצמיתות
 // בדיוק כמו יומן הטיולים, כדי שיישאר גם אחרי ריסטארט או מעבר בין מכשירים =====
 const MAX_NOTIFICATIONS_PER_USER = 100; // מגבלה כדי שקובץ הנתונים לא יגדל בלי סוף
-function addNotification(id, message) {
-  if (!isValidId(id) || typeof message !== "string" || !message.trim()) return;
+// entry: { message, kind: "invite"|"yalla"|"info", fromId?, toId? } - fromId/toId חובה כש-kind==="invite",
+// כדי שאפשר יהיה להציג כפתור "יאללה" ולשלוח תגובה ישירות מתוך רשימת "התראות שקיבלתי" עצמה
+// (ולא רק דרך כפתור בהתראת ה-Push או קישור עומק, שלא תמיד עובדים - למשל באייפון)
+function addNotification(id, entry) {
+  if (!isValidId(id) || !entry || typeof entry.message !== "string" || !entry.message.trim()) return;
+  const kind = (entry.kind === "invite" || entry.kind === "yalla") ? entry.kind : "info";
+  const clean = {
+    id: crypto.randomUUID(),
+    kind,
+    message: entry.message.trim().slice(0, 300),
+    at: new Date().toISOString(),
+    read: false
+  };
+  if (kind === "invite") {
+    if (!isValidId(entry.fromId) || !isValidId(entry.toId)) return;
+    clean.fromId = entry.fromId;
+    clean.toId = entry.toId;
+    clean.replied = false;
+  }
   const list = Array.isArray(store.notifications[id]) ? store.notifications[id] : [];
-  list.push({ message: message.trim().slice(0, 300), at: new Date().toISOString(), read: false });
+  list.push(clean);
   store.notifications[id] = list.slice(-MAX_NOTIFICATIONS_PER_USER); // שומרים רק את האחרונות
   saveStore();
 }
@@ -185,6 +203,21 @@ function markNotificationsRead(id) {
   if (!Array.isArray(list) || !list.length) return;
   let changed = false;
   list.forEach((n) => { if (!n.read) { n.read = true; changed = true; } });
+  if (changed) saveStore();
+}
+// כשעונים בפועל "יאללה" להזמנה (מכל ערוץ - כפתור בהתראה, קישור עומק, או ישירות מתוך
+// רשימת "התראות שקיבלתי") - מסמנים את ההזמנה כ"נענתה" כדי שכפתור התגובה ייעלם משם
+function markInviteNotificationsReplied(toId, fromId) {
+  const list = store.notifications[toId];
+  if (!Array.isArray(list) || !list.length) return;
+  let changed = false;
+  list.forEach((n) => {
+    if (n.kind === "invite" && n.fromId === fromId && !n.replied) {
+      n.replied = true;
+      if (!n.read) n.read = true;
+      changed = true;
+    }
+  });
   if (changed) saveStore();
 }
 function sanitizePushSubscription(sub) {
@@ -239,7 +272,8 @@ app.post("/api/invite-reply", (req, res) => {
 
   const toProfile = store.profiles[toId];
   const toName = (toProfile && toProfile.dogName) || "חבר/ה";
-  addNotification(fromId, "🎉 " + toName + " ענה/תה יאללה! מתכוננים לצאת לגינה");
+  addNotification(fromId, { kind: "yalla", message: "🎉 " + toName + " ענה/תה יאללה! מתכוננים לצאת לגינה" });
+  markInviteNotificationsReplied(toId, fromId); // מסתיר את כפתור "יאללה" ברשימת ההתראות של מי שהגיב/ה
   const sub = store.subscriptions[fromId];
   if (sub) {
     const payload = JSON.stringify({
@@ -491,7 +525,7 @@ io.on("connection", (socket) => {
     });
     webpush.sendNotification(sub, payload)
       .then(() => {
-        addNotification(toId, "🐾 " + fromName + " מזמינ/ה אתכם לגינה!");
+        addNotification(toId, { kind: "invite", message: "🐾 " + fromName + " מזמינ/ה אתכם לגינה!", fromId: fromId, toId: toId });
         socket.emit("invite:result", { ok: true, targetId: toId });
       })
       .catch((err) => {

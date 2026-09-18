@@ -299,6 +299,8 @@
   .notif-entry .notif-text{ font-size:.86rem; line-height:1.5; }
   .notif-entry .notif-when{ font-size:.72rem; color:var(--text-muted); margin-top:3px; }
   .notif-unread-dot{ width:9px;height:9px;border-radius:50%; background:var(--primary); flex:0 0 auto; margin-top:6px; }
+  .notif-entry .invite-btn{ margin-top:8px; }
+  .notif-entry .notif-replied{ font-size:.78rem; color:var(--text-muted); margin-top:6px; }
 
   .invite-reply-banner{ position:fixed; left:16px; right:16px; bottom:16px; z-index:50; max-width:420px;
     margin:0 auto; background:var(--surface); border-radius:var(--radius-md); box-shadow:0 6px 24px rgba(0,0,0,.3);
@@ -876,7 +878,17 @@
 
   // ===== "התראות שקיבלתי" - יומן הזמנות ותגובות "יאללה", עם מספר לא-נקראו כמו
   // באפליקציות הודעות. נשמר לצמיתות לפי חשבון (בדיוק כמו מועדפים וטיולים) =====
-  var myNotifications = []; // {message, at, read}, חדש לישן
+  var myNotifications = []; // {id, kind, message, at, read, fromId?, toId?, replied?}, חדש לישן
+  // שולח בפועל תגובת "יאללה" ל-API (בלי תלות בסוקט) - קריאת fetch רגילה. משמש גם מכפתור
+  // "יאללה" בתוך רשימת "התראות שקיבלתי" עצמה, וגם מהבאנר שנפתח דרך קישור עומק בהתראה
+  function sendInviteReply(fromId, toId, onDone){
+    fetch("/api/invite-reply", {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({ fromId: fromId, toId: toId })
+    }).then(function(r){ return r.json(); }).then(function(data){
+      onDone(!!(data && data.ok));
+    }).catch(function(){ onDone(false); });
+  }
   function renderNotifications(){
     if(!els.notifSummaryBtn) return;
     var entries = myNotifications;
@@ -893,15 +905,36 @@
       els.notifEmptyNote.hidden = false; els.notifList.hidden = true; els.notifList.innerHTML = ""; return;
     }
     els.notifEmptyNote.hidden = true; els.notifList.hidden = false;
-    els.notifList.innerHTML = entries.map(function(n){
-      return '<div class="notif-entry">' +
+    els.notifList.innerHTML = entries.map(function(n, idx){
+      var canReply = n.kind === "invite" && !n.replied && typeof n.fromId === "string" && typeof n.toId === "string";
+      return '<div class="notif-entry" data-notif-idx="'+idx+'">' +
         (n.read ? '' : '<span class="notif-unread-dot"></span>') +
         '<div style="flex:1;min-width:0">' +
           '<div class="notif-text">'+escapeHtml(n.message)+'</div>' +
           '<div class="notif-when">'+escapeHtml(fmtWalkWhen(n.at))+'</div>' +
+          (canReply ? '<button type="button" class="invite-btn notif-reply-btn">יאללה! 🐾</button>' : '') +
+          (n.kind === "invite" && n.replied ? '<div class="notif-replied">✅ עניתם יאללה</div>' : '') +
         '</div>' +
       '</div>';
     }).join("");
+    Array.prototype.forEach.call(els.notifList.querySelectorAll(".notif-reply-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        var idx = Number(btn.closest(".notif-entry").getAttribute("data-notif-idx"));
+        var entry = myNotifications[idx];
+        if(!entry) return;
+        btn.disabled = true; btn.textContent = "שולח/ת…";
+        sendInviteReply(entry.fromId, entry.toId, function(ok){
+          if(ok){
+            showToast("שלחתם יאללה! 🐾");
+            entry.replied = true; // עדכון אופטימי מיידי, ומאשרים מול השרת ברענון הבא
+            renderNotifications();
+          } else {
+            btn.disabled = false; btn.textContent = "יאללה! 🐾";
+            showToast("לא הצלחנו לשלוח את התגובה.");
+          }
+        });
+      });
+    });
   }
   if(els.notifSummaryBtn){
     els.notifSummaryBtn.addEventListener("click", function(){
@@ -982,13 +1015,11 @@
     document.getElementById("inviteReplyYes").addEventListener("click", function(){
       var btn = document.getElementById("inviteReplyYes");
       btn.disabled = true; btn.textContent = "שולח/ת…";
-      fetch("/api/invite-reply", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ fromId: fromId, toId: toId })
-      }).then(function(r){ return r.json(); }).then(function(data){
+      sendInviteReply(fromId, toId, function(ok){
         close();
-        showToast(data && data.ok ? "שלחתם יאללה! 🐾" : "לא הצלחנו לשלוח את התגובה.");
-      }).catch(function(){ close(); showToast("לא הצלחנו לשלוח את התגובה."); });
+        showToast(ok ? "שלחתם יאללה! 🐾" : "לא הצלחנו לשלוח את התגובה.");
+        if(ok && socket) socket.emit("notifications:sync", { id: myId }); // כדי שהרשומה תופיע כ"נענתה" גם ברשימה
+      });
     });
   }
   function checkInviteDeepLink(){
@@ -1276,6 +1307,76 @@
     });
   }
 
+  // עדכון "עדין" של תג הכלב (badge) - נוגעים ב-DOM של התמונה רק כשהאייקון/הצבע באמת
+  // השתנו, כדי שלא תהיה הבהוב של התמונה בכל עדכון מיקום/פינג (גם כמה פעמים בדקה)
+  function applyBadge(badgeEl, icon, color){
+    var iconKey = icon || "";
+    if(badgeEl.getAttribute("data-icon") !== iconKey){
+      badgeEl.setAttribute("data-icon", iconKey);
+      var src = galleryImageSrc(icon);
+      badgeEl.innerHTML = src ? '<img src="'+escapeHtml(src)+'" alt="">' : FALLBACK_PAW_SVG;
+    }
+    badgeEl.style.borderColor = color || "";
+  }
+
+  function upsertNearbyCard(w){
+    var card = els.nearbyList.querySelector('.walker-card[data-wid="'+w.id+'"]');
+    if(!card){
+      card = document.createElement("div");
+      card.className = "walker-card";
+      card.setAttribute("data-wid", w.id);
+      card.innerHTML =
+        '<div class="wc-row">' +
+          '<div class="dog-badge list"></div>' +
+          '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
+          '<div class="meta"></div>' +
+        '</div>' +
+        '<div class="wc-actions">' +
+          '<button type="button" class="star-btn" data-star="'+w.id+'" aria-label="מועדף"></button>' +
+        '</div>';
+      els.nearbyList.appendChild(card);
+      card.querySelector(".star-btn").addEventListener("click", function(){
+        if(!socket) return;
+        socket.emit("favorite:toggle", { id: myId, targetId: w.id, on: !isStarred(w.id) });
+      });
+    } else {
+      els.nearbyList.appendChild(card); // ממקם בסדר הנכון (לפי מרחק) בלי להרוס את הצומת/התמונה
+    }
+
+    applyBadge(card.querySelector(".dog-badge"), w.data.dogIcon, w.data.dogColor);
+    card.querySelector(".name").textContent = w.data.dogName;
+    var dogEl = card.querySelector(".dog");
+    if(w.data.dogBreed){ dogEl.hidden = false; dogEl.textContent = w.data.dogBreed; }
+    else { dogEl.hidden = true; dogEl.textContent = ""; }
+    card.querySelector(".meta").innerHTML =
+      '<span class="chip dist">'+fmtDist(w.dist)+'</span><span class="chip">'+fmtAgo(w.data.startedAt)+'</span>';
+
+    var starred = isStarred(w.id);
+    var starBtn = card.querySelector(".star-btn");
+    starBtn.className = "star-btn"+(starred?" active":"");
+    starBtn.title = starred ? "הסרה מהמועדפים" : "הוספה למועדפים";
+    starBtn.textContent = starred ? "★" : "☆";
+
+    var actions = card.querySelector(".wc-actions");
+    var inviteBtn = actions.querySelector(".invite-btn");
+    if(isMutualWith(w.id)){
+      if(!inviteBtn){
+        inviteBtn = document.createElement("button");
+        inviteBtn.type = "button";
+        inviteBtn.className = "invite-btn";
+        inviteBtn.setAttribute("data-invite", w.id);
+        inviteBtn.textContent = "🐾 בוא/י לגינה";
+        inviteBtn.addEventListener("click", function(){
+          if(!socket) return;
+          socket.emit("invite:send", { id: myId, targetId: w.id });
+        });
+        actions.appendChild(inviteBtn);
+      }
+    } else if(inviteBtn){
+      inviteBtn.remove();
+    }
+  }
+
   function renderList(){
     var list=activeWalkers();
     els.nearbyCount.textContent = list.length ? (list.length + (list.length===1 ? " מטייל/ת" : " מטיילים")) : "";
@@ -1283,41 +1384,76 @@
       els.emptyNote.hidden=false; els.nearbyList.hidden=true; els.nearbyList.innerHTML=""; return;
     }
     els.emptyNote.hidden=true; els.nearbyList.hidden=false;
-    els.nearbyList.innerHTML = list.map(function(w){
-      var starred = isStarred(w.id);
-      var mutual = isMutualWith(w.id);
-      return '<div class="walker-card">' +
-        '<div class="wc-row">' +
-        dogBadgeHtml(galleryImageSrc(w.data.dogIcon), "list", w.data.dogColor) +
-        '<div class="info"><div class="name">'+escapeHtml(w.data.dogName)+'</div>' +
-        (w.data.dogBreed ? '<div class="dog">'+escapeHtml(w.data.dogBreed)+'</div>' : '') +
-        '</div>' +
-        '<div class="meta"><span class="chip dist">'+fmtDist(w.dist)+'</span>' +
-        '<span class="chip">'+fmtAgo(w.data.startedAt)+'</span></div>' +
-        '</div>' +
-        '<div class="wc-actions">' +
-          '<button type="button" class="star-btn'+(starred?" active":"")+'" data-star="'+w.id+'" title="'+(starred?"הסרה מהמועדפים":"הוספה למועדפים")+'" aria-label="מועדף">'+(starred?"★":"☆")+'</button>' +
-          (mutual ? '<button type="button" class="invite-btn" data-invite="'+w.id+'">🐾 בוא/י לגינה</button>' : '') +
-        '</div>' +
-      '</div>';
-    }).join("");
-
-    Array.prototype.forEach.call(els.nearbyList.querySelectorAll("[data-star]"), function(btn){
-      btn.addEventListener("click", function(){
-        if(!socket) return;
-        var id = btn.getAttribute("data-star");
-        socket.emit("favorite:toggle", { id: myId, targetId: id, on: !isStarred(id) });
-      });
-    });
-    Array.prototype.forEach.call(els.nearbyList.querySelectorAll("[data-invite]"), function(btn){
-      btn.addEventListener("click", function(){
-        if(!socket) return;
-        socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-invite") });
-      });
+    var seen = {};
+    list.forEach(function(w){ seen[w.id] = true; upsertNearbyCard(w); });
+    Array.prototype.forEach.call(els.nearbyList.querySelectorAll(".walker-card"), function(card){
+      if(!seen[card.getAttribute("data-wid")]) card.remove();
     });
   }
 
-  // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, תמיד מוצגים כאן גם כשהם לא בטיול כרגע =====
+  // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, תמיד מוצגים כאן גם כשהם לא בטיול כרגע.
+  // גם כאן מעדכנים רק את מה שהשתנה, כדי שתמונת הכלב לא תהבהב בכל עדכון =====
+  function upsertFriendCard(id){
+    var live = latestDocs[id];
+    var saved = myFavoriteProfiles[id];
+    var data = live || saved;
+    var name = (data && data.dogName) || "כלב/ה";
+    var breed = data && data.dogBreed;
+    var icon = data && data.dogIcon;
+    var color = data && data.dogColor;
+
+    var card = els.friendsList.querySelector('.walker-card[data-wid="'+id+'"]');
+    if(!card){
+      card = document.createElement("div");
+      card.className = "walker-card";
+      card.setAttribute("data-wid", id);
+      card.innerHTML =
+        '<div class="wc-row">' +
+          '<div class="dog-badge list"></div>' +
+          '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
+          '<div class="meta"></div>' +
+        '</div>' +
+        '<div class="wc-actions">' +
+          '<button type="button" class="star-btn active" data-star="'+id+'" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
+        '</div>';
+      els.friendsList.appendChild(card);
+      card.querySelector(".star-btn").addEventListener("click", function(){
+        if(!socket) return;
+        socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
+      });
+    } else {
+      els.friendsList.appendChild(card); // ממקם בסדר הנכון בלי להרוס את הצומת/התמונה
+    }
+
+    applyBadge(card.querySelector(".dog-badge"), icon, color);
+    card.querySelector(".name").textContent = name;
+    var dogEl = card.querySelector(".dog");
+    if(breed){ dogEl.hidden = false; dogEl.textContent = breed; }
+    else { dogEl.hidden = true; dogEl.textContent = ""; }
+    card.querySelector(".meta").innerHTML = live
+      ? '<span class="chip dist">🟢 בטיול עכשיו</span>'
+      : '<span class="chip">לא בטיול כרגע</span>';
+
+    var actions = card.querySelector(".wc-actions");
+    var inviteBtn = actions.querySelector(".invite-btn");
+    if(isMutualWith(id)){
+      if(!inviteBtn){
+        inviteBtn = document.createElement("button");
+        inviteBtn.type = "button";
+        inviteBtn.className = "invite-btn";
+        inviteBtn.setAttribute("data-invite", id);
+        inviteBtn.textContent = "🐾 בוא/י לגינה";
+        inviteBtn.addEventListener("click", function(){
+          if(!socket) return;
+          socket.emit("invite:send", { id: myId, targetId: id });
+        });
+        actions.appendChild(inviteBtn);
+      }
+    } else if(inviteBtn){
+      inviteBtn.remove();
+    }
+  }
+
   function renderFriends(){
     if(!els.friendsList) return;
     var ids = myFavoritesOut;
@@ -1326,43 +1462,10 @@
       els.friendsEmptyNote.hidden=false; els.friendsList.hidden=true; els.friendsList.innerHTML=""; return;
     }
     els.friendsEmptyNote.hidden=true; els.friendsList.hidden=false;
-    els.friendsList.innerHTML = ids.map(function(id){
-      var live = latestDocs[id];
-      var saved = myFavoriteProfiles[id];
-      var data = live || saved;
-      var name = (data && data.dogName) || "כלב/ה";
-      var breed = data && data.dogBreed;
-      var icon = data && data.dogIcon;
-      var color = data && data.dogColor;
-      var mutual = isMutualWith(id);
-      var statusChip = live ? '<span class="chip dist">🟢 בטיול עכשיו</span>' : '<span class="chip">לא בטיול כרגע</span>';
-      return '<div class="walker-card">' +
-        '<div class="wc-row">' +
-        dogBadgeHtml(galleryImageSrc(icon), "list", color) +
-        '<div class="info"><div class="name">'+escapeHtml(name)+'</div>' +
-        (breed ? '<div class="dog">'+escapeHtml(breed)+'</div>' : '') +
-        '</div>' +
-        '<div class="meta">'+statusChip+'</div>' +
-        '</div>' +
-        '<div class="wc-actions">' +
-          '<button type="button" class="star-btn active" data-star="'+id+'" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
-          (mutual ? '<button type="button" class="invite-btn" data-invite="'+id+'">🐾 בוא/י לגינה</button>' : '') +
-        '</div>' +
-      '</div>';
-    }).join("");
-
-    Array.prototype.forEach.call(els.friendsList.querySelectorAll("[data-star]"), function(btn){
-      btn.addEventListener("click", function(){
-        if(!socket) return;
-        var id = btn.getAttribute("data-star");
-        socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
-      });
-    });
-    Array.prototype.forEach.call(els.friendsList.querySelectorAll("[data-invite]"), function(btn){
-      btn.addEventListener("click", function(){
-        if(!socket) return;
-        socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-invite") });
-      });
+    var seen = {};
+    ids.forEach(function(id){ seen[id] = true; upsertFriendCard(id); });
+    Array.prototype.forEach.call(els.friendsList.querySelectorAll(".walker-card"), function(card){
+      if(!seen[card.getAttribute("data-wid")]) card.remove();
     });
   }
 
