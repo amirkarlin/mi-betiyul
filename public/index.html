@@ -292,6 +292,22 @@
   .walk-entry .walk-duration{ font-size:.82rem; font-weight:700; color:var(--primary); white-space:nowrap;
     background:color-mix(in srgb, var(--primary) 14%, transparent); border-radius:999px; padding:5px 12px; }
 
+  .notif-badge{ display:inline-flex; align-items:center; justify-content:center; min-width:20px; height:20px;
+    padding:0 6px; border-radius:999px; background:#E63946; color:#fff; font-size:.72rem; font-weight:800; line-height:1; }
+  .notif-entry{ display:flex; align-items:flex-start; gap:10px;
+    background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; }
+  .notif-entry .notif-text{ font-size:.86rem; line-height:1.5; }
+  .notif-entry .notif-when{ font-size:.72rem; color:var(--text-muted); margin-top:3px; }
+  .notif-unread-dot{ width:9px;height:9px;border-radius:50%; background:var(--primary); flex:0 0 auto; margin-top:6px; }
+
+  .invite-reply-banner{ position:fixed; left:16px; right:16px; bottom:16px; z-index:50; max-width:420px;
+    margin:0 auto; background:var(--surface); border-radius:var(--radius-md); box-shadow:0 6px 24px rgba(0,0,0,.3);
+    padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .invite-reply-banner .msg{ font-size:.94rem; font-weight:700; line-height:1.5; }
+  .invite-reply-banner .row{ display:flex; gap:10px; }
+  .invite-reply-banner .row .btn{ flex:1; padding:12px 16px; font-size:.9rem; }
+  .invite-reply-banner .btn-secondary{ background:var(--surface-2); color:var(--text); }
+
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
@@ -424,6 +440,20 @@
       <div class="nearby-list" id="walksList"></div>
     </div>
 
+    <div class="panel-title"><h2>התראות שקיבלתי</h2><span id="notifBadge" class="notif-badge" hidden>0</span></div>
+    <button type="button" class="walks-summary-card" id="notifSummaryBtn" aria-expanded="false">
+      <span class="walks-summary-top">
+        <span class="walks-summary-number" id="notifSummaryCount">0</span>
+        <span class="walks-summary-label">התראות</span>
+      </span>
+      <span class="walks-summary-sub" id="notifSummarySub">עדיין אין התראות</span>
+      <span class="walks-summary-arrow" id="notifSummaryArrow">▾</span>
+    </button>
+    <div class="walks-log" id="notifLog" hidden>
+      <div class="empty-note" id="notifEmptyNote">עדיין לא קיבלתם התראות. כשמישהו יזמין אתכם לגינה או יגיב "יאללה", זה יופיע כאן.</div>
+      <div class="nearby-list" id="notifList"></div>
+    </div>
+
     <footer class="note">
       המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
     </footer>
@@ -454,6 +484,8 @@
     friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"),
     walksSummaryBtn:$("walksSummaryBtn"), walksSummaryCount:$("walksSummaryCount"), walksSummarySub:$("walksSummarySub"),
     walksLog:$("walksLog"), walksEmptyNote:$("walksEmptyNote"), walksList:$("walksList"),
+    notifBadge:$("notifBadge"), notifSummaryBtn:$("notifSummaryBtn"), notifSummaryCount:$("notifSummaryCount"),
+    notifSummarySub:$("notifSummarySub"), notifLog:$("notifLog"), notifEmptyNote:$("notifEmptyNote"), notifList:$("notifList"),
     connDot:$("connDot"), connLabel:$("connLabel"), recenterBtn:$("recenterBtn"),
     installBanner:$("installBanner"), installBannerText:$("installBannerText"), installClose:$("installClose"),
     notifyBtn:$("notifyBtn"), toast:$("toast"),
@@ -842,6 +874,46 @@
     });
   }
 
+  // ===== "התראות שקיבלתי" - יומן הזמנות ותגובות "יאללה", עם מספר לא-נקראו כמו
+  // באפליקציות הודעות. נשמר לצמיתות לפי חשבון (בדיוק כמו מועדפים וטיולים) =====
+  var myNotifications = []; // {message, at, read}, חדש לישן
+  function renderNotifications(){
+    if(!els.notifSummaryBtn) return;
+    var entries = myNotifications;
+    var unread = entries.filter(function(n){ return !n.read; }).length;
+    els.notifSummaryCount.textContent = entries.length;
+    if(els.notifBadge){
+      if(unread > 0){ els.notifBadge.hidden = false; els.notifBadge.textContent = unread > 99 ? "99+" : String(unread); }
+      else { els.notifBadge.hidden = true; }
+    }
+    els.notifSummarySub.textContent = entries.length
+      ? (unread > 0 ? (unread + (unread===1 ? " התראה חדשה" : " התראות חדשות")) : "הכל נקרא")
+      : "עדיין אין התראות";
+    if(!entries.length){
+      els.notifEmptyNote.hidden = false; els.notifList.hidden = true; els.notifList.innerHTML = ""; return;
+    }
+    els.notifEmptyNote.hidden = true; els.notifList.hidden = false;
+    els.notifList.innerHTML = entries.map(function(n){
+      return '<div class="notif-entry">' +
+        (n.read ? '' : '<span class="notif-unread-dot"></span>') +
+        '<div style="flex:1;min-width:0">' +
+          '<div class="notif-text">'+escapeHtml(n.message)+'</div>' +
+          '<div class="notif-when">'+escapeHtml(fmtWalkWhen(n.at))+'</div>' +
+        '</div>' +
+      '</div>';
+    }).join("");
+  }
+  if(els.notifSummaryBtn){
+    els.notifSummaryBtn.addEventListener("click", function(){
+      var expanded = els.notifSummaryBtn.getAttribute("aria-expanded") === "true";
+      els.notifSummaryBtn.setAttribute("aria-expanded", expanded ? "false" : "true");
+      els.notifLog.hidden = expanded;
+      if(!expanded && socket && myNotifications.some(function(n){ return !n.read; })){
+        socket.emit("notifications:read", { id: myId });
+      }
+    });
+  }
+
   // ===== מועדפים (כוכב הדדי) והזמנת "בוא/י לגינה" =====
   var myFavoritesOut = []; // כלבים שאני סימנתי בכוכב
   var myFavoritesIn = [];  // כלבים שסימנו אותי בכוכב
@@ -889,6 +961,51 @@
   }
   tryAutoLocation();
 
+  // ===== תגובת "יאללה" מתוך התראת Push - באייפון אין בכלל תמיכה בכפתורי-פעולה בתוך
+  // התראות (זו מגבלת פלטפורמה, לא באג), אז לחיצה על ההתראה עצמה פותחת את האפליקציה
+  // עם ההזמנה מסומנת בכתובת (?invite=fromId~toId), וכאן מציגים כפתור "יאללה" ברור
+  // לאישור מפורש. עובד בלי תלות בסוקט - זו קריאת fetch רגילה ל-API =====
+  function showInviteReplyBanner(fromId, toId){
+    var name = (myFavoriteProfiles[fromId] && myFavoriteProfiles[fromId].dogName) ||
+      (latestDocs[fromId] && latestDocs[fromId].dogName) || "חבר/ה";
+    var banner = document.createElement("div");
+    banner.className = "invite-reply-banner";
+    banner.innerHTML =
+      '<div class="msg">🐾 '+escapeHtml(name)+' הזמינ/ה אתכם לגינה!</div>' +
+      '<div class="row">' +
+        '<button type="button" class="btn btn-primary" id="inviteReplyYes">יאללה! 🐾</button>' +
+        '<button type="button" class="btn btn-secondary" id="inviteReplyNo">אולי אחר כך</button>' +
+      '</div>';
+    document.body.appendChild(banner);
+    function close(){ banner.remove(); }
+    document.getElementById("inviteReplyNo").addEventListener("click", close);
+    document.getElementById("inviteReplyYes").addEventListener("click", function(){
+      var btn = document.getElementById("inviteReplyYes");
+      btn.disabled = true; btn.textContent = "שולח/ת…";
+      fetch("/api/invite-reply", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ fromId: fromId, toId: toId })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        close();
+        showToast(data && data.ok ? "שלחתם יאללה! 🐾" : "לא הצלחנו לשלוח את התגובה.");
+      }).catch(function(){ close(); showToast("לא הצלחנו לשלוח את התגובה."); });
+    });
+  }
+  function checkInviteDeepLink(){
+    try{
+      var params = new URLSearchParams(location.search);
+      var invite = params.get("invite");
+      if(!invite) return;
+      history.replaceState(null, "", location.pathname); // מנקים מהכתובת כדי שרענון לא יפעיל שוב
+      var parts = invite.split("~");
+      if(parts.length !== 2) return;
+      var fromId = parts[0], toId = parts[1];
+      if(toId !== myId) return; // ליתר ביטחון - זו לא ההזמנה שלנו
+      showInviteReplyBanner(fromId, toId);
+    }catch(e){}
+  }
+  checkInviteDeepLink();
+
   function startApp(){
     els.gate.hidden = true; els.mainApp.hidden = false; els.editProfileBtn.hidden = false;
 
@@ -901,7 +1018,7 @@
 
     connectSocket();
     renderRadar(); renderList(); renderCta();
-    renderAccountPanel(); renderWalks();
+    renderAccountPanel(); renderWalks(); renderNotifications();
     var existingProfile = getProfile();
     if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
   }
@@ -912,6 +1029,7 @@
       els.connDot.classList.add("online"); els.connLabel.textContent = "מחובר/ת לשרת";
       socket.emit("favorites:sync", { id: myId });
       socket.emit("history:sync", { id: myId });
+      socket.emit("notifications:sync", { id: myId });
     });
     socket.on("disconnect", function(){ els.connDot.classList.remove("online"); els.connLabel.textContent = "מנותק/ת - מנסה להתחבר מחדש…"; });
     socket.on("walkers:update", function(list){
@@ -930,6 +1048,10 @@
       myWalkHistory = (state && state.entries) || [];
       renderWalks();
     });
+    socket.on("notifications:state", function(state){
+      myNotifications = (state && state.entries) || [];
+      renderNotifications();
+    });
     socket.on("invite:result", function(res){
       if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }
       else { showToast((res && INVITE_ERROR_MESSAGES[res.reason]) || "לא הצלחנו לשלוח את ההזמנה."); }
@@ -939,6 +1061,7 @@
     socket.on("invite:reply", function(res){
       var name = (res && res.dogName) || "חבר/ה";
       showToast("🎉 " + name + " ענה/תה יאללה! מתכוננים לצאת לגינה");
+      socket.emit("notifications:sync", { id: myId }); // מרעננים את "התראות שקיבלתי" כדי שהתגובה תופיע שם גם בלי לרענן דף
     });
   }
 
@@ -1206,7 +1329,7 @@
     els.friendsList.innerHTML = ids.map(function(id){
       var live = latestDocs[id];
       var saved = myFavoriteProfiles[id];
-      var data = live ? live.data : saved;
+      var data = live || saved;
       var name = (data && data.dogName) || "כלב/ה";
       var breed = data && data.dogBreed;
       var icon = data && data.dogIcon;

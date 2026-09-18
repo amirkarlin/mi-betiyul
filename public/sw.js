@@ -68,12 +68,24 @@ self.addEventListener("notificationclick", (event) => {
     return;
   }
 
+  // לחיצה רגילה על התראת הזמנה (המצב היחיד באייפון, שם אין תמיכה בכפתורי פעולה בכלל) -
+  // פותחים/ממקדים את האפליקציה עם קישור עומק שיציג בתוכה את באנר "יאללה?" לאישור.
+  let targetUrl = "/";
+  if (data.kind === "invite" && data.fromId && data.toId) {
+    targetUrl = "/?invite=" + encodeURIComponent(data.fromId) + "~" + encodeURIComponent(data.toId);
+  }
+
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientsList) => {
       for (const client of clientsList) {
-        if ("focus" in client) return client.focus();
+        if ("focus" in client) {
+          if ("navigate" in client) {
+            return client.navigate(targetUrl).then((c) => c.focus());
+          }
+          return client.focus();
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow("/");
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
     })
   );
 });

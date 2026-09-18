@@ -70,14 +70,15 @@ function normalizeStoreShape(parsed) {
     favorites: (parsed && typeof parsed.favorites === "object" && parsed.favorites) || {},
     subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
     profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {},
-    walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {}
+    walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {},
+    notifications: (parsed && typeof parsed.notifications === "object" && parsed.notifications) || {}
   };
 }
 function loadStore() {
   try {
     return normalizeStoreShape(JSON.parse(fs.readFileSync(DATA_FILE, "utf8")));
   } catch (e) {
-    return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {} };
+    return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {}, notifications: {} };
   }
 }
 const store = loadStore();
@@ -165,6 +166,27 @@ function addWalkHistoryEntry(id, startedAtIso, endedAtIso) {
 function getWalkHistory(id) {
   return Array.isArray(store.walkHistory[id]) ? store.walkHistory[id].slice().reverse() : []; // חדש לישן
 }
+
+// ===== "התראות שקיבלתי" - יומן הודעות (הזמנות/תגובות יאללה) לפי מזהה, נשמר לצמיתות
+// בדיוק כמו יומן הטיולים, כדי שיישאר גם אחרי ריסטארט או מעבר בין מכשירים =====
+const MAX_NOTIFICATIONS_PER_USER = 100; // מגבלה כדי שקובץ הנתונים לא יגדל בלי סוף
+function addNotification(id, message) {
+  if (!isValidId(id) || typeof message !== "string" || !message.trim()) return;
+  const list = Array.isArray(store.notifications[id]) ? store.notifications[id] : [];
+  list.push({ message: message.trim().slice(0, 300), at: new Date().toISOString(), read: false });
+  store.notifications[id] = list.slice(-MAX_NOTIFICATIONS_PER_USER); // שומרים רק את האחרונות
+  saveStore();
+}
+function getNotifications(id) {
+  return Array.isArray(store.notifications[id]) ? store.notifications[id].slice().reverse() : []; // חדש לישן
+}
+function markNotificationsRead(id) {
+  const list = store.notifications[id];
+  if (!Array.isArray(list) || !list.length) return;
+  let changed = false;
+  list.forEach((n) => { if (!n.read) { n.read = true; changed = true; } });
+  if (changed) saveStore();
+}
 function sanitizePushSubscription(sub) {
   if (!sub || typeof sub !== "object") return null;
   if (typeof sub.endpoint !== "string" || sub.endpoint.length < 10 || sub.endpoint.length > 600) return null;
@@ -217,6 +239,7 @@ app.post("/api/invite-reply", (req, res) => {
 
   const toProfile = store.profiles[toId];
   const toName = (toProfile && toProfile.dogName) || "חבר/ה";
+  addNotification(fromId, "🎉 " + toName + " ענה/תה יאללה! מתכוננים לצאת לגינה");
   const sub = store.subscriptions[fromId];
   if (sub) {
     const payload = JSON.stringify({
@@ -403,6 +426,20 @@ io.on("connection", (socket) => {
     socket.emit("history:state", { entries: getWalkHistory(id) });
   });
 
+  // ===== "התראות שקיבלתי" - יומן הודעות שנשמר לצמיתות לפי מזהה =====
+  socket.on("notifications:sync", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id)) return;
+    socket.emit("notifications:state", { entries: getNotifications(id) });
+  });
+
+  socket.on("notifications:read", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id)) return;
+    markNotificationsRead(id);
+    socket.emit("notifications:state", { entries: getNotifications(id) });
+  });
+
   // ===== מועדפים (כוכב) - נשמרים לצמיתות, לא תלויים בהיותך "בטיול" =====
   socket.on("favorites:sync", (data) => {
     const id = data && data.id;
@@ -454,6 +491,7 @@ io.on("connection", (socket) => {
     });
     webpush.sendNotification(sub, payload)
       .then(() => {
+        addNotification(toId, "🐾 " + fromName + " מזמינ/ה אתכם לגינה!");
         socket.emit("invite:result", { ok: true, targetId: toId });
       })
       .catch((err) => {
