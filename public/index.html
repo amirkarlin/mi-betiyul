@@ -325,6 +325,30 @@
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
+  .onboarding-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200;
+    display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  .onboarding-modal{ position:relative; width:100%; max-width:380px; box-sizing:border-box;
+    background-color:var(--surface-2);
+    background-image: linear-gradient(color-mix(in srgb, var(--surface-2) 58%, transparent), color-mix(in srgb, var(--surface-2) 58%, transparent)), url("/bg-pattern.jpg");
+    background-size: cover, 160px 160px;
+    background-position: center, center;
+    background-repeat: no-repeat, repeat;
+    border-radius:var(--radius-lg); box-shadow:0 12px 36px -10px rgba(0,0,0,.55);
+    padding:38px 20px 20px; display:flex; flex-direction:column; gap:14px; max-height:88vh; overflow-y:auto; }
+  .onboarding-dogs-row{ display:flex; justify-content:center; }
+  .onboarding-dogs-row img{ width:52px;height:52px;border-radius:50%; object-fit:cover;
+    border:3px solid var(--surface); box-shadow:0 2px 6px rgba(0,0,0,.25); margin-inline-start:-14px; background:var(--surface); }
+  .onboarding-dogs-row img:first-child{ margin-inline-start:0; }
+  .onboarding-modal h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.2rem;
+    margin:0; text-align:center; }
+  .onboarding-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  .onboarding-list li{ display:flex; align-items:flex-start; gap:9px; font-size:.86rem; line-height:1.55;
+    background:var(--surface); border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:10px 12px; }
+  .onboarding-list li .paw-ico{ flex:0 0 auto; margin-top:1px; }
+  .onboarding-dontshow{ display:flex; align-items:center; gap:8px; font-size:.78rem; color:var(--text-muted);
+    padding:2px 2px 0; }
+  .onboarding-dontshow input{ width:16px;height:16px; flex:0 0 auto; accent-color:var(--primary); }
+
   [hidden]{display:none!important;}
 </style>
 </head>
@@ -491,6 +515,24 @@
   </main>
 </div>
 
+<div class="onboarding-overlay" id="onboardingOverlay" hidden>
+  <div class="onboarding-modal">
+    <button type="button" class="close-x-btn" id="onboardingCloseBtn" aria-label="סגירה">✕</button>
+    <div class="onboarding-dogs-row" id="onboardingDogsRow"></div>
+    <h2>ברוכים הבאים ל"מי בטיול?" 🐾</h2>
+    <ul class="onboarding-list">
+      <li><span class="paw-ico">🐾</span><span>רואים בזמן אמת אילו כלבים נמצאים כרגע בטיול בסביבה</span></li>
+      <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" ושולחים הזמנה "בוא/י לגינה" בלחיצת כפתור</span></li>
+      <li><span class="paw-ico">🐾</span><span>מקבלים התראה כשמזמינים אתכם, ועונים "יאללה" ישירות מההתראה או מהאפליקציה</span></li>
+      <li><span class="paw-ico">🐾</span><span>אפשר להגדיר כתובת "בית" כדי שהטיול יסתיים לבד כשחוזרים</span></li>
+    </ul>
+    <label class="onboarding-dontshow">
+      <input type="checkbox" id="onboardingDontShowAgain">
+      <span>הבנתי, אל תראה לי את זה שוב</span>
+    </label>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -527,7 +569,9 @@
     loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError"),
     homeCurrent:$("homeCurrent"), homeAddressInput:$("homeAddressInput"), saveHomeBtn:$("saveHomeBtn"),
     homeAddressError:$("homeAddressError"), homeAutoEndRow:$("homeAutoEndRow"), homeAutoEndToggle:$("homeAutoEndToggle"),
-    removeHomeBtn:$("removeHomeBtn")
+    removeHomeBtn:$("removeHomeBtn"),
+    onboardingOverlay:$("onboardingOverlay"), onboardingDogsRow:$("onboardingDogsRow"),
+    onboardingCloseBtn:$("onboardingCloseBtn"), onboardingDontShowAgain:$("onboardingDontShowAgain")
   };
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
@@ -539,6 +583,41 @@
   function galleryImageSrc(id){
     for(var i=0;i<GALLERY_ITEMS.length;i++){ if(GALLERY_ITEMS[i].id === id) return GALLERY_ITEMS[i].src; }
     return null;
+  }
+
+  // ===== מודאל היכרות ("Onboarding") שמוצג עם הכניסה הראשונה לאפליקציה, ומסביר בקצרה
+  // את התכונות המרכזיות. דגל קבוע ב-localStorage שולט אם הוא כבר "נסגר לצמיתות".
+  // ברירת המחדל של תיבת הסימון תלויה אם כבר יש פרופיל שמור: למשתמש/ת עם פרופיל קיים
+  // (כבר מכיר/ה את האפליקציה) היא מסומנת מראש כך שסגירה פשוטה ב-X כבר מבטלת לצמיתות;
+  // למשתמש/ת חדש/ה בלי פרופיל היא לא מסומנת, כך שהמודאל ימשיך להופיע בכניסות הבאות
+  // עד שיסמנו את התיבה בעצמם =====
+  function onboardingDismissedForever(){
+    try{ return localStorage.getItem("mibetiyul_onboarding_dismissed") === "1"; }catch(e){ return false; }
+  }
+  function markOnboardingDismissedForever(){
+    try{ localStorage.setItem("mibetiyul_onboarding_dismissed", "1"); }catch(e){}
+  }
+  function populateOnboardingDogsRow(){
+    if(!els.onboardingDogsRow || els.onboardingDogsRow.children.length) return;
+    var picks = ["g1","g5","g9","g14","g20"];
+    els.onboardingDogsRow.innerHTML = picks.map(function(id){
+      return '<img src="'+escapeHtml(galleryImageSrc(id))+'" alt="">';
+    }).join("");
+  }
+  function showOnboardingModal(){
+    if(!els.onboardingOverlay || onboardingDismissedForever()) return;
+    populateOnboardingDogsRow();
+    if(els.onboardingDontShowAgain){
+      var existing = getProfile();
+      els.onboardingDontShowAgain.checked = !!(existing && existing.dogName);
+    }
+    els.onboardingOverlay.hidden = false;
+  }
+  if(els.onboardingCloseBtn){
+    els.onboardingCloseBtn.addEventListener("click", function(){
+      if(els.onboardingDontShowAgain && els.onboardingDontShowAgain.checked) markOnboardingDismissedForever();
+      els.onboardingOverlay.hidden = true;
+    });
   }
 
   var THEME_COLORS = ["#F4B400","#E63946","#457B9D","#2A9D8F","#7B2CBF","#FF6FB5","#2F5233","#6C757D"];
@@ -1187,6 +1266,7 @@
     connectSocket();
     renderRadar(); renderList(); renderCta();
     renderAccountPanel(); renderWalks(); renderNotifications();
+    showOnboardingModal();
     var existingProfile = getProfile();
     if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
   }
