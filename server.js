@@ -18,6 +18,16 @@ const MAX_STRING_LEN = 40;
 const DOG_TYPES = ["floppy", "pointy", "curly", "small", "gallery"];
 const DOG_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_DOG_COLOR = "#8B5A2B";
+const DEFAULT_DOG_NAME = "כלב/ה"; // פלייסהולדר בלבד (למשל בתוויות ריקות) - אף פעם לא מוצג כאילו הוא שם אמיתי בהודעות בין משתמשים
+// ממיר שם כלב ל"שם תצוגה" בטוח להצגה בהודעה בין משתמשים (הזמנה/יאללה/התראה) - אם השם
+// חסר, או שהוא בפועל רק הפלייסהולדר הגנרי (למשל פרופיל שנשמר פעם בלי שם אמיתי), מחזירים
+// null כדי שהקורא/ת יציבו fallback ניטרלי ("חבר/ה") במקום להציג את המילה "כלב/ה" כשם
+function displayDogName(name) {
+  if (typeof name !== "string") return null;
+  const trimmed = name.trim();
+  if (!trimmed || trimmed === DEFAULT_DOG_NAME) return null;
+  return trimmed;
+}
 const DOG_ICON_RE = /^g([1-9]|1[0-9]|2[0-6])$/; // תמונות הגלריה: g1..g26 (public/dog-icons/g*.png)
 const ID_RE = /^[A-Za-z0-9-]{1,64}$/; // תואם למזהים שנוצרים ב-localStorage בצד הלקוח
 const INVITE_COOLDOWN_MS = 10 * 60 * 1000; // מגבלת קצב: הזמנה אחת לכל זוג כל 10 דק'
@@ -271,7 +281,7 @@ app.post("/api/invite-reply", (req, res) => {
   if (!isMutualFavorite(fromId, toId)) return res.status(403).json({ ok: false });
 
   const toProfile = store.profiles[toId];
-  const toName = (toProfile && toProfile.dogName) || "חבר/ה";
+  const toName = displayDogName(toProfile && toProfile.dogName) || "חבר/ה";
   addNotification(fromId, { kind: "yalla", message: "🎉 " + toName + " ענה/תה יאללה! מתכוננים לצאת לגינה" });
   markInviteNotificationsReplied(toId, fromId); // מסתיר את כפתור "יאללה" ברשימת ההתראות של מי שהגיב/ה
   const sub = store.subscriptions[fromId];
@@ -325,6 +335,44 @@ app.post("/api/login-with-code", (req, res) => {
     dogColor: profile.dogColor,
     code: profile.code
   });
+});
+
+// ===== גיאוקוד כתובת ל-lat/lng, דרך Nominatim (OpenStreetMap) - חינמי, בלי מפתח API.
+// עושים את זה בשרת (לא ישירות מהדפדפן) כדי לצרף User-Agent תקין כנדרש במדיניות השימוש
+// של Nominatim, ולשמור על קצב עדין (בקשה אחת בשנייה לכל היותר) עם מטמון פשוט בזיכרון =====
+const GEOCODE_CACHE = new Map(); // "כתובת מנורמלת" -> {lat, lng, displayName, at}
+const GEOCODE_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+let lastGeocodeAt = 0;
+app.post("/api/geocode", async (req, res) => {
+  const raw = req.body && req.body.address;
+  const address = typeof raw === "string" ? raw.trim().slice(0, 200) : "";
+  if (!address) return res.status(400).json({ ok: false });
+  const cacheKey = address.toLowerCase();
+  const cached = GEOCODE_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.at < GEOCODE_CACHE_TTL_MS) {
+    return res.json({ ok: true, lat: cached.lat, lng: cached.lng, displayName: cached.displayName });
+  }
+  const now = Date.now();
+  const wait = Math.max(0, 1100 - (now - lastGeocodeAt));
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+  lastGeocodeAt = Date.now();
+  try {
+    const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + encodeURIComponent(address);
+    const resp = await fetch(url, {
+      headers: { "User-Agent": "mi-betiyul-app/1.0 (dog walking app, personal project)" }
+    });
+    if (!resp.ok) return res.status(502).json({ ok: false, reason: "geocode_failed" });
+    const data = await resp.json();
+    if (!Array.isArray(data) || !data.length) return res.json({ ok: false, reason: "not_found" });
+    const lat = parseFloat(data[0].lat);
+    const lng = parseFloat(data[0].lon);
+    if (!isFinite(lat) || !isFinite(lng)) return res.json({ ok: false, reason: "not_found" });
+    const displayName = String(data[0].display_name || address).slice(0, 200);
+    GEOCODE_CACHE.set(cacheKey, { lat, lng, displayName, at: Date.now() });
+    res.json({ ok: true, lat, lng, displayName });
+  } catch (e) {
+    res.status(502).json({ ok: false, reason: "geocode_failed" });
+  }
 });
 
 /** @type {Map<string, {dogName:string, dogBreed:string, dogType:string, dogColor:string, dogIcon:(string|null), lat:number, lng:number, startedAt:string, lastPing:string, socketId:string}>} */
@@ -501,7 +549,9 @@ io.on("connection", (socket) => {
     }
     const fromWalker = walkers.get(fromId);
     const fromProfile = store.profiles[fromId];
-    const fromName = (fromWalker && fromWalker.dogName) || (fromProfile && fromProfile.dogName) || "חבר/ה מהאפליקציה";
+    // מעדיפים את השם השמור בפרופיל (הזהות הקבועה) על פני השם הרגעי בטיול הפעיל -
+    // כך שגם אם הצ׳ק-אין נעשה עם שם לא מעודכן, ההודעה עדיין תציג את השם הנכון
+    const fromName = displayDogName(fromProfile && fromProfile.dogName) || displayDogName(fromWalker && fromWalker.dogName) || "חבר/ה";
     const sub = store.subscriptions[toId];
     if (!sub) {
       socket.emit("invite:result", { ok: false, targetId: toId, reason: "no_subscription" });

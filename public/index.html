@@ -239,6 +239,18 @@
     text-align:center; letter-spacing:1.5px; text-transform:uppercase; direction:ltr; }
   .account-login-row .btn{ padding:10px 18px; font-size:.86rem; flex:0 0 auto; }
 
+  .account-home-box{ display:flex; flex-direction:column; gap:8px; text-align:right;
+    border-top:1px solid var(--ring); padding-top:14px; width:100%; box-sizing:border-box; }
+  .account-home-current{ font-size:.82rem; background:var(--surface); border-radius:var(--radius-sm);
+    padding:8px 12px; box-shadow:var(--shadow); line-height:1.5; }
+  .account-home-row{ display:flex; gap:8px; width:100%; }
+  .account-home-row input{ flex:1; min-width:0; border:1.5px solid var(--ring-strong); background:var(--surface);
+    color:var(--text); border-radius:var(--radius-sm); padding:10px 12px; font-size:.9rem; font-family:inherit; }
+  .account-home-row .btn{ padding:10px 16px; font-size:.86rem; flex:0 0 auto; }
+  .home-autoend-toggle{ display:flex; align-items:center; gap:8px; font-size:.82rem; cursor:pointer; }
+  .home-autoend-toggle input{ width:18px;height:18px; flex:0 0 auto; }
+  .account-home-box .link-btn{ align-self:flex-start; }
+
   .theme-picker{ display:flex; flex-direction:column; align-items:center; gap:6px; }
   .theme-picker .theme-label{ font-size:.72rem; color:var(--text-muted); font-weight:600;
     background:var(--surface); border-radius:7px; padding:3px 9px; box-shadow:var(--shadow); }
@@ -369,7 +381,8 @@
             <span class="dogname-text" id="dogNameDisplayText"></span>
             <button type="button" class="link-btn" id="dogNameEditToggle">✏️ עריכה</button>
           </div>
-          <input id="dogName" maxlength="24" placeholder="לדוגמה: באדי" required></div>
+          <input id="dogName" maxlength="24" placeholder="לדוגמה: באדי" required>
+          <div class="field-error" id="dogNameError" hidden>יש להזין שם אמיתי לכלב/ה - אי אפשר להמשיך עם שדה ריק.</div></div>
         <div class="field"><label for="dogBreed">גזע הכלב</label>
           <select id="dogBreed"></select></div>
         <div class="field"><label>תמונת הכלב</label><div id="iconPicker"></div>
@@ -404,6 +417,21 @@
             <button type="button" class="btn btn-primary" id="loginCodeBtn">התחברות</button>
           </div>
           <div class="field-error" id="loginCodeError" hidden></div>
+        </div>
+
+        <div class="account-home-box">
+          <div class="account-code-label">בית (לסיום טיול אוטומטי)</div>
+          <div class="account-home-current" id="homeCurrent" hidden></div>
+          <div class="account-home-row">
+            <input type="text" id="homeAddressInput" placeholder="הזינו כתובת, למשל: הרצל 1, תל אביב" autocomplete="off">
+            <button type="button" class="btn btn-primary" id="saveHomeBtn">שמירה</button>
+          </div>
+          <div class="field-error" id="homeAddressError" hidden></div>
+          <label class="home-autoend-toggle" id="homeAutoEndRow" hidden>
+            <input type="checkbox" id="homeAutoEndToggle">
+            <span>סיום טיול אוטומטי כשמגיעים הביתה (ברדיוס 30 מ')</span>
+          </label>
+          <button type="button" class="link-btn" id="removeHomeBtn" hidden>הסרת נקודת הבית</button>
         </div>
       </div>
     </div>
@@ -480,7 +508,7 @@
     mainApp:$("mainApp"), editProfileBtn:$("editProfileBtn"),
     statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"),
     walkTimer:$("walkTimer"), profileForm:$("profileForm"), profileSubmitBtn:$("profileSubmitBtn"), dogName:$("dogName"), dogBreed:$("dogBreed"),
-    profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"),
+    profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"), dogNameError:$("dogNameError"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"),
@@ -496,7 +524,10 @@
     accountDogSummary:$("accountDogSummary"), accountDogBadgeWrap:$("accountDogBadgeWrap"),
     accountDogName:$("accountDogName"), accountThemeSwatch:$("accountThemeSwatch"), accountEditBtn:$("accountEditBtn"),
     accountCloseBtn:$("accountCloseBtn"),
-    loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError")
+    loginCodeInput:$("loginCodeInput"), loginCodeBtn:$("loginCodeBtn"), loginCodeError:$("loginCodeError"),
+    homeCurrent:$("homeCurrent"), homeAddressInput:$("homeAddressInput"), saveHomeBtn:$("saveHomeBtn"),
+    homeAddressError:$("homeAddressError"), homeAutoEndRow:$("homeAutoEndRow"), homeAutoEndToggle:$("homeAutoEndToggle"),
+    removeHomeBtn:$("removeHomeBtn")
   };
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
@@ -597,6 +628,13 @@
   function getMyCode(){ try{return localStorage.getItem("mibetiyul_code")||null;}catch(e){return null;} }
   function saveMyCode(code){ try{localStorage.setItem("mibetiyul_code", code);}catch(e){} }
 
+  // ===== "בית" - נקודת מוצא לסיום טיול אוטומטי כשחוזרים אליה (נשמר במכשיר בלבד -
+  // דרך "נקודת עוגן" קבועה, לא תלוי בהיות מטיילים/מחוברים) =====
+  var HOME_RADIUS_M = 30;
+  function getHome(){ try{ return JSON.parse(localStorage.getItem("mibetiyul_home")||"null"); }catch(e){ return null; } }
+  function saveHome(h){ try{ localStorage.setItem("mibetiyul_home", JSON.stringify(h)); }catch(e){} }
+  function clearHome(){ try{ localStorage.removeItem("mibetiyul_home"); }catch(e){} }
+
   // ===== קוד אישי: שולח את הפרופיל לשרת כדי לקבל/לעדכן קוד קבוע, שאיתו אפשר "להיזכר"
   // גם ממכשיר אחר בלי הרשמה אמיתית (בלי סיסמה/אימייל) =====
   function syncProfileToServer(profile){
@@ -628,6 +666,24 @@
         els.accountDogSummary.hidden = true;
       }
     }
+    renderHomeSection();
+  }
+
+  function renderHomeSection(){
+    if(!els.homeCurrent) return;
+    var home = getHome();
+    if(home && home.address){
+      els.homeCurrent.hidden = false;
+      els.homeCurrent.textContent = "🏠 " + home.address;
+      els.homeAddressInput.value = "";
+      els.homeAutoEndRow.hidden = false;
+      els.homeAutoEndToggle.checked = home.autoEnd !== false; // ברירת מחדל: פעיל
+      els.removeHomeBtn.hidden = false;
+    } else {
+      els.homeCurrent.hidden = true;
+      els.homeAutoEndRow.hidden = true;
+      els.removeHomeBtn.hidden = true;
+    }
   }
 
   var myId = uid();
@@ -639,6 +695,7 @@
   var pingTimer = null;
   var timerTick = null;
   var latestDocs = {};
+  var hasLeftHomeThisWalk = false; // כדי לא לסיים טיול אוטומטית מיד בהתחלה, אם הוא ממילא מתחיל ליד הבית
 
   function toRad(d){ return d*Math.PI/180; }
   function distanceMeters(lat1,lon1,lat2,lon2){
@@ -667,6 +724,15 @@
     return String(s).replace(/[&<>"']/g, function(c){
       return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
     });
+  }
+
+  // שם תצוגה בטוח - אם השם חסר, או שהוא בפועל רק הפלייסהולדר הגנרי "כלב/ה" (למשל פרופיל
+  // שנשמר פעם בלי שם אמיתי), מחזירים null כדי שהקורא/ת יציבו fallback ניטרלי ("חבר/ה")
+  function displayDogName(name){
+    if(typeof name !== "string") return null;
+    var trimmed = name.trim();
+    if(!trimmed || trimmed === "כלב/ה") return null;
+    return trimmed;
   }
 
   var toastTimer = null;
@@ -834,6 +900,53 @@
       });
   });
 
+  // ===== "בית" - הזנת כתובת, גיאוקוד דרך השרת (Nominatim/OpenStreetMap), ושמירה
+  // מקומית לצורך זיהוי "הגעתם הביתה" וסיום טיול אוטומטי =====
+  if(els.saveHomeBtn){
+    els.saveHomeBtn.addEventListener("click", function(){
+      var address = els.homeAddressInput.value.trim();
+      els.homeAddressError.hidden = true;
+      if(!address){ els.homeAddressError.textContent = "יש להזין כתובת."; els.homeAddressError.hidden = false; return; }
+      var prevText = els.saveHomeBtn.textContent;
+      els.saveHomeBtn.disabled = true; els.saveHomeBtn.textContent = "מאתר/ת…";
+      fetch("/api/geocode", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ address: address })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        els.saveHomeBtn.disabled = false; els.saveHomeBtn.textContent = prevText;
+        if(data && data.ok){
+          saveHome({ lat:data.lat, lng:data.lng, address:data.displayName || address, autoEnd:true });
+          hasLeftHomeThisWalk = false;
+          renderHomeSection();
+          showToast("נקודת הבית נשמרה! 🏠");
+        } else {
+          els.homeAddressError.textContent = "לא הצלחנו לאתר את הכתובת הזו. נסו לנסח אותה מעט אחרת (למשל: רחוב, מספר ועיר).";
+          els.homeAddressError.hidden = false;
+        }
+      }).catch(function(){
+        els.saveHomeBtn.disabled = false; els.saveHomeBtn.textContent = prevText;
+        els.homeAddressError.textContent = "שגיאת תקשורת. נסו שוב.";
+        els.homeAddressError.hidden = false;
+      });
+    });
+  }
+  if(els.removeHomeBtn){
+    els.removeHomeBtn.addEventListener("click", function(){
+      clearHome();
+      hasLeftHomeThisWalk = false;
+      renderHomeSection();
+      showToast("נקודת הבית הוסרה.");
+    });
+  }
+  if(els.homeAutoEndToggle){
+    els.homeAutoEndToggle.addEventListener("change", function(){
+      var home = getHome();
+      if(!home) return;
+      home.autoEnd = els.homeAutoEndToggle.checked;
+      saveHome(home);
+    });
+  }
+
   // ===== "הטיולים שלי" - יומן משכי טיולים =====
   var myWalkHistory = []; // {startedAt, endedAt, durationMin}, חדש לישן
   function fmtWalkDuration(min){
@@ -960,6 +1073,12 @@
     send_failed: "לא הצלחנו לשלוח את ההזמנה. נסו שוב."
   };
 
+  // ===== זוכרים במכשיר שגישת המיקום כבר אושרה בעבר, כדי שלא נצטרך להסתמך רק על
+  // navigator.permissions.query - שלא נתמך באמינות בספארי/אייפון, ולכן שם המשתמש
+  // היה נאלץ ללחוץ "אפשרו גישה למיקום" מחדש בכל כניסה גם כשההרשאה כבר קיימת =====
+  function geoWasGrantedBefore(){ try{ return localStorage.getItem("mibetiyul_geo_granted") === "1"; }catch(e){ return false; } }
+  function markGeoGranted(){ try{ localStorage.setItem("mibetiyul_geo_granted", "1"); }catch(e){} }
+
   els.enableLocationBtn.addEventListener("click", function(){
     els.gateErr.hidden = true;
     els.enableLocationBtn.disabled = true;
@@ -967,6 +1086,7 @@
     if(!("geolocation" in navigator)){ showGateError("הדפדפן הזה לא תומך בשירותי מיקום."); return; }
     navigator.geolocation.getCurrentPosition(function(pos){
       myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      markGeoGranted();
       startApp();
     }, function(err){
       showGateError(err.code === 1
@@ -980,17 +1100,33 @@
     els.enableLocationBtn.disabled = false; els.enableLocationBtn.textContent = "אפשרו גישה למיקום";
   }
 
+  function requestLocationSilently(){
+    navigator.geolocation.getCurrentPosition(function(pos){
+      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      markGeoGranted();
+      startApp();
+    }, function(){ /* נכשל/נדחה - נשארים במסך הבקשה הרגיל, בלי הודעת שגיאה מיותרת */ },
+    {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+  }
+
   // ===== אם הדפדפן כבר אישר גישה למיקום בעבר (למשל בביקור קודם), מדלגים על מסך
   // הבקשה ונכנסים ישר לאפליקציה - כדי שלא יצטרכו "לפתוח" את המיקום מחדש בכל פעם =====
   function tryAutoLocation(){
-    if(!("geolocation" in navigator) || !("permissions" in navigator) || !navigator.permissions || !navigator.permissions.query) return;
-    navigator.permissions.query({ name: "geolocation" }).then(function(status){
-      if(status.state !== "granted") return;
-      navigator.geolocation.getCurrentPosition(function(pos){
-        myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
-        startApp();
-      }, function(){ /* נכשל - נשאיר את שער הבקשה הרגיל למקרה חריג */ }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
-    }).catch(function(){});
+    if(!("geolocation" in navigator)) return;
+    // מסלול מהיר לדפדפנים שתומכים ב-Permissions API (כרום/פיירפוקס/אדג' וכו') - לא
+    // נוגעים בכלל במיקום עד שבטוח שההרשאה כבר מאושרת בפועל
+    if("permissions" in navigator && navigator.permissions && navigator.permissions.query){
+      navigator.permissions.query({ name: "geolocation" }).then(function(status){
+        if(status.state === "granted"){ requestLocationSilently(); }
+        else if(geoWasGrantedBefore()){ requestLocationSilently(); } // ספארי לפעמים מדווח "prompt" גם כשכבר אושר
+      }).catch(function(){
+        if(geoWasGrantedBefore()) requestLocationSilently();
+      });
+    } else if(geoWasGrantedBefore()){
+      // בעיקר ספארי/אייפון - אין תמיכה אמינה ב-Permissions API למיקום, אז מסתמכים על
+      // כך שכבר הצלחנו לקבל מיקום פעם קודמת במכשיר הזה
+      requestLocationSilently();
+    }
   }
   tryAutoLocation();
 
@@ -999,8 +1135,8 @@
   // עם ההזמנה מסומנת בכתובת (?invite=fromId~toId), וכאן מציגים כפתור "יאללה" ברור
   // לאישור מפורש. עובד בלי תלות בסוקט - זו קריאת fetch רגילה ל-API =====
   function showInviteReplyBanner(fromId, toId){
-    var name = (myFavoriteProfiles[fromId] && myFavoriteProfiles[fromId].dogName) ||
-      (latestDocs[fromId] && latestDocs[fromId].dogName) || "חבר/ה";
+    var name = displayDogName(myFavoriteProfiles[fromId] && myFavoriteProfiles[fromId].dogName) ||
+      displayDogName(latestDocs[fromId] && latestDocs[fromId].dogName) || "חבר/ה";
     var banner = document.createElement("div");
     banner.className = "invite-reply-banner";
     banner.innerHTML =
@@ -1043,6 +1179,7 @@
     watchId = navigator.geolocation.watchPosition(function(pos){
       myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
       renderRadar(); renderList();
+      checkHomeAutoEnd();
     }, function(){ /* keep last known position on transient errors */ }, {
       enableHighAccuracy:true, maximumAge:15000, timeout:20000
     });
@@ -1171,8 +1308,16 @@
 
   els.profileForm.addEventListener("submit", function(e){
     e.preventDefault();
+    var typedName = els.dogName.value.trim();
+    if(!typedName){
+      if(els.dogNameError) els.dogNameError.hidden = false;
+      setDogNameEditable(true);
+      els.dogName.focus();
+      return;
+    }
+    if(els.dogNameError) els.dogNameError.hidden = true;
     if(!selectedIcon){ els.iconError.hidden = false; return; }
-    var profile = { dogName: els.dogName.value.trim() || "כלב/ה", dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor };
+    var profile = { dogName: typedName, dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor };
     saveProfile(profile);
     syncProfileToServer(profile);
     els.profileForm.hidden = true;
@@ -1216,6 +1361,7 @@
   function startWalk(profile){
     isWalking = true;
     walkStartedAt = new Date().toISOString();
+    hasLeftHomeThisWalk = false;
     renderCta(); tickTimer();
     writeMyDoc(profile);
     pingTimer = setInterval(pingMyDoc, PING_MS);
@@ -1226,6 +1372,23 @@
     renderCta(); deleteMyDoc();
     if(pingTimer){ clearInterval(pingTimer); pingTimer = null; }
     if(timerTick){ clearInterval(timerTick); timerTick = null; }
+  }
+
+  // ===== סיום טיול אוטומטי כשחוזרים לנקודת ה"בית" שהוגדרה - כדי לא לסיים מיד אם הטיול
+  // ממילא מתחיל ליד הבית, מחכים שקודם יתרחקו לפחות פי 2 מרדיוס ה"הגעה" ורק אז בודקים חזרה =====
+  function checkHomeAutoEnd(){
+    if(!isWalking || !myPos) return;
+    var home = getHome();
+    if(!home || home.autoEnd === false) return;
+    var dist = distanceMeters(myPos.lat, myPos.lng, home.lat, home.lng);
+    if(!hasLeftHomeThisWalk){
+      if(dist > HOME_RADIUS_M * 2) hasLeftHomeThisWalk = true;
+      return;
+    }
+    if(dist <= HOME_RADIUS_M){
+      stopWalk();
+      showToast("🏠 הגעתם הביתה - הטיול הסתיים אוטומטית!");
+    }
   }
   window.addEventListener("pagehide", function(){ if(isWalking) deleteMyDoc(); });
 
