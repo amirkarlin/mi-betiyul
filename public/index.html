@@ -108,7 +108,7 @@
   .icon-btn svg{width:18px;height:18px;fill:currentColor;}
 
   .gate{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:34px 24px;
-    text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px; }
+    text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
   .gate .paw-big{width:56px;height:56px;fill:var(--primary);opacity:.9;}
   .gate h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.3rem; margin:2px 0 0; }
   .gate p{ color:var(--text-muted); font-size:.92rem; line-height:1.6; max-width:34ch; margin:0; }
@@ -284,6 +284,19 @@
     font-weight:700; font-size:.78rem; padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
   .invite-btn:active{transform:scale(.96);}
 
+  /* "החברים שלי" - שורה אופקית של תמונה+שם בלבד; לחיצה על חבר/ה פותחת כרטיסיית
+     פרטים (הזמנה/הסרה מהמועדפים) מתחת לשורה, במקום להציג הכל תמיד לכל חבר */
+  .friends-row{ display:flex; gap:14px; overflow-x:auto; padding:4px 2px 10px; -webkit-overflow-scrolling:touch; }
+  .friend-chip{ appearance:none; border:none; background:none; cursor:pointer; font-family:inherit;
+    display:flex; flex-direction:column; align-items:center; gap:6px; flex:0 0 auto; width:68px; padding:2px; }
+  .friend-chip .dog-badge.list{ width:58px;height:58px; transition:box-shadow .12s ease; }
+  .friend-chip.selected .dog-badge.list{ box-shadow:0 0 0 3px var(--primary); }
+  .friend-chip-name{ font-size:.74rem; font-weight:700; color:var(--text); white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:100%; }
+  .friend-detail{ display:flex; flex-direction:column; gap:10px; background:var(--surface);
+    border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; margin-top:-2px; }
+  .friend-detail-hint{ font-size:.78rem; color:var(--text-muted); line-height:1.5; }
+
   .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
     text-align:center; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
 
@@ -325,7 +338,7 @@
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
-  .onboarding-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:200;
+  .onboarding-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999;
     display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   .onboarding-modal{ position:relative; width:100%; max-width:380px; box-sizing:border-box;
     background-color:var(--surface-2);
@@ -376,15 +389,15 @@
     <button type="button" class="install-close" id="installClose" aria-label="סגירה">✕</button>
   </div>
 
-  <div class="gate" id="gate">
-    <svg class="paw-big" viewBox="0 0 24 24"><path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>
-    <h2>בואו נראה מי בסביבה</h2>
-    <p>כדי להראות לך מטיילים קרובים ולאפשר לך להיות גלוי/ה, האפליקציה צריכה גישה למיקום שלך. המיקום נשמר רק כל עוד את/ה מסומן/ת כ"בטיול".</p>
-    <button class="btn btn-primary" id="enableLocationBtn">אפשרו גישה למיקום</button>
-    <div class="err" id="gateErr" hidden></div>
-  </div>
+  <main id="mainApp">
 
-  <main id="mainApp" hidden>
+    <div class="gate" id="gate">
+      <svg class="paw-big" viewBox="0 0 24 24"><path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>
+      <h2>בואו נראה מי בסביבה</h2>
+      <p>כדי להראות לך מטיילים קרובים ולאפשר לך להיות גלוי/ה, האפליקציה צריכה גישה למיקום שלך. המיקום נשמר רק כל עוד את/ה מסומן/ת כ"בטיול".</p>
+      <button class="btn btn-primary" id="enableLocationBtn">אפשרו גישה למיקום</button>
+      <div class="err" id="gateErr" hidden></div>
+    </div>
 
     <div class="status-card">
 
@@ -460,12 +473,14 @@
       </div>
     </div>
 
-    <div class="panel-title"><h2>מפה</h2><span></span></div>
-    <div class="radar-wrap map-wrap">
-      <div id="map"></div>
-      <button class="icon-btn map-recenter" id="recenterBtn" title="חזרה למיקום שלי" type="button">
-        <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.06A7.002 7.002 0 0 0 13 4.06V2h-2v2.06A7.002 7.002 0 0 0 4.06 11H2v2h2.06A7.002 7.002 0 0 0 11 19.94V22h2v-2.06A7.002 7.002 0 0 0 19.94 13H22v-2ZM12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z"/></svg>
-      </button>
+    <div id="mapSection" hidden>
+      <div class="panel-title"><h2>מפה</h2><span></span></div>
+      <div class="radar-wrap map-wrap">
+        <div id="map"></div>
+        <button class="icon-btn map-recenter" id="recenterBtn" title="חזרה למיקום שלי" type="button">
+          <svg viewBox="0 0 24 24"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm9 3h-2.06A7.002 7.002 0 0 0 13 4.06V2h-2v2.06A7.002 7.002 0 0 0 4.06 11H2v2h2.06A7.002 7.002 0 0 0 11 19.94V22h2v-2.06A7.002 7.002 0 0 0 19.94 13H22v-2ZM12 18a6 6 0 1 1 0-12 6 6 0 0 1 0 12Z"/></svg>
+        </button>
+      </div>
     </div>
 
     <div class="panel-title"><h2>בטיול עכשיו</h2><span id="nearbyCount"></span></div>
@@ -477,7 +492,8 @@
     <div class="panel-title"><h2>החברים שלי</h2><span id="friendsCount"></span></div>
     <div id="friendsContainer">
       <div class="empty-note" id="friendsEmptyNote">עדיין אין לכם חברים מועדפים. לחצו על הכוכב ☆ ליד כלב/ה ב"בטיול עכשיו" כדי להוסיף אותם לכאן.</div>
-      <div class="nearby-list" id="friendsList"></div>
+      <div class="friends-row" id="friendsList"></div>
+      <div class="friend-detail" id="friendDetail" hidden></div>
     </div>
 
     <div class="panel-title"><h2>הטיולים שלי</h2><span></span></div>
@@ -553,7 +569,7 @@
     profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"), dogNameError:$("dogNameError"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
-    friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"),
+    friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"), friendDetail:$("friendDetail"),
     walksSummaryBtn:$("walksSummaryBtn"), walksSummaryCount:$("walksSummaryCount"), walksSummarySub:$("walksSummarySub"),
     walksLog:$("walksLog"), walksEmptyNote:$("walksEmptyNote"), walksList:$("walksList"),
     notifBadge:$("notifBadge"), notifSummaryBtn:$("notifSummaryBtn"), notifSummaryCount:$("notifSummaryCount"),
@@ -571,7 +587,8 @@
     homeAddressError:$("homeAddressError"), homeAutoEndRow:$("homeAutoEndRow"), homeAutoEndToggle:$("homeAutoEndToggle"),
     removeHomeBtn:$("removeHomeBtn"),
     onboardingOverlay:$("onboardingOverlay"), onboardingDogsRow:$("onboardingDogsRow"),
-    onboardingCloseBtn:$("onboardingCloseBtn"), onboardingDontShowAgain:$("onboardingDontShowAgain")
+    onboardingCloseBtn:$("onboardingCloseBtn"), onboardingDontShowAgain:$("onboardingDontShowAgain"),
+    mapSection:$("mapSection")
   };
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
@@ -587,10 +604,8 @@
 
   // ===== מודאל היכרות ("Onboarding") שמוצג עם הכניסה הראשונה לאפליקציה, ומסביר בקצרה
   // את התכונות המרכזיות. דגל קבוע ב-localStorage שולט אם הוא כבר "נסגר לצמיתות".
-  // ברירת המחדל של תיבת הסימון תלויה אם כבר יש פרופיל שמור: למשתמש/ת עם פרופיל קיים
-  // (כבר מכיר/ה את האפליקציה) היא מסומנת מראש כך שסגירה פשוטה ב-X כבר מבטלת לצמיתות;
-  // למשתמש/ת חדש/ה בלי פרופיל היא לא מסומנת, כך שהמודאל ימשיך להופיע בכניסות הבאות
-  // עד שיסמנו את התיבה בעצמם =====
+  // תיבת הסימון תמיד מתחילה ריקה (לא מסומנת) - המודאל ימשיך להופיע בכל כניסה עד
+  // שמסמנים אותה במפורש וסוגרים =====
   function onboardingDismissedForever(){
     try{ return localStorage.getItem("mibetiyul_onboarding_dismissed") === "1"; }catch(e){ return false; }
   }
@@ -607,10 +622,7 @@
   function showOnboardingModal(){
     if(!els.onboardingOverlay || onboardingDismissedForever()) return;
     populateOnboardingDogsRow();
-    if(els.onboardingDontShowAgain){
-      var existing = getProfile();
-      els.onboardingDontShowAgain.checked = !!(existing && existing.dogName);
-    }
+    if(els.onboardingDontShowAgain) els.onboardingDontShowAgain.checked = false;
     els.onboardingOverlay.hidden = false;
   }
   if(els.onboardingCloseBtn){
@@ -1158,6 +1170,34 @@
   function geoWasGrantedBefore(){ try{ return localStorage.getItem("mibetiyul_geo_granted") === "1"; }catch(e){ return false; } }
   function markGeoGranted(){ try{ localStorage.setItem("mibetiyul_geo_granted", "1"); }catch(e){} }
 
+  // ===== המסך הראשי ("דף הבית") מוצג תמיד באופן מיידי, בלי לחכות למיקום בכלל - המיקום
+  // מתבקש רק ברקע (בשקט, אם כבר אושר בעבר) או בפועל (בלחיצה מפורשת/בהתחלת טיול). ברגע
+  // שיש מיקום, updateLocationUI() מסתירה את כרטיסיית הבקשה ומציגה את סקשן המפה =====
+  function updateLocationUI(){
+    var have = !!myPos;
+    els.gate.hidden = have;
+    if(els.mapSection) els.mapSection.hidden = !have;
+  }
+
+  function beginLocationWatch(){
+    if(watchId !== null) return; // כבר במעקב - לא פותחים מעקב כפול
+    watchId = navigator.geolocation.watchPosition(function(pos){
+      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      renderRadar(); renderList();
+      checkHomeAutoEnd();
+    }, function(){ /* keep last known position on transient errors */ }, {
+      enableHighAccuracy:true, maximumAge:15000, timeout:20000
+    });
+  }
+
+  function onLocationReady(){
+    updateLocationUI();
+    beginLocationWatch();
+    renderRadar(); renderList();
+    var existingProfile = getProfile();
+    if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
+  }
+
   els.enableLocationBtn.addEventListener("click", function(){
     els.gateErr.hidden = true;
     els.enableLocationBtn.disabled = true;
@@ -1166,7 +1206,8 @@
     navigator.geolocation.getCurrentPosition(function(pos){
       myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
       markGeoGranted();
-      startApp();
+      els.enableLocationBtn.disabled = false; els.enableLocationBtn.textContent = "אפשרו גישה למיקום";
+      onLocationReady();
     }, function(err){
       showGateError(err.code === 1
         ? "הגישה למיקום נחסמה. יש לאשר גישה למיקום בהגדרות הדפדפן ולנסות שוב."
@@ -1183,9 +1224,27 @@
     navigator.geolocation.getCurrentPosition(function(pos){
       myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
       markGeoGranted();
-      startApp();
-    }, function(){ /* נכשל/נדחה - נשארים במסך הבקשה הרגיל, בלי הודעת שגיאה מיותרת */ },
+      onLocationReady();
+    }, function(){ /* נכשל/נדחה - נשארת כרטיסיית הבקשה גלויה, בלי הודעת שגיאה מיותרת */ },
     {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+  }
+
+  // ===== כדי להתחיל טיול צריך מיקום בפועל - אם עוד אין, מבקשים אותו קודם (עם משוב
+  // ברור על ההצלחה/כישלון) ורק אז ממשיכים לפעולה שביקשו (למשל פתיחת טופס הפרופיל
+  // או התחלת הטיול עצמו) =====
+  function ensureLocationThen(onReady){
+    if(myPos){ onReady(); return; }
+    if(!("geolocation" in navigator)){ showToast("הדפדפן הזה לא תומך בשירותי מיקום."); return; }
+    navigator.geolocation.getCurrentPosition(function(pos){
+      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
+      markGeoGranted();
+      onLocationReady();
+      onReady();
+    }, function(err){
+      showToast(err.code === 1
+        ? "הגישה למיקום נחסמה. יש לאשר גישה למיקום בהגדרות הדפדפן ולנסות שוב."
+        : "לא הצלחנו לאתר את המיקום שלך. נסו שוב.");
+    }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
   }
 
   // ===== אם הדפדפן כבר אישר גישה למיקום בעבר (למשל בביקור קודם), מדלגים על מסך
@@ -1208,6 +1267,18 @@
     }
   }
   tryAutoLocation();
+
+  // ===== "דף הבית" - כל מה שלא תלוי במיקום עצמו (סוקט, פרופיל, חברים, טיולים,
+  // התראות, מודאל היכרות) עולה מיד בכניסה לאפליקציה, בלי לחכות בכלל לאישור מיקום =====
+  function initApp(){
+    els.editProfileBtn.hidden = false;
+    connectSocket();
+    renderRadar(); renderList(); renderCta();
+    renderAccountPanel(); renderWalks(); renderNotifications();
+    showOnboardingModal();
+    updateLocationUI();
+  }
+  initApp();
 
   // ===== תגובת "יאללה" מתוך התראת Push - באייפון אין בכלל תמיכה בכפתורי-פעולה בתוך
   // התראות (זו מגבלת פלטפורמה, לא באג), אז לחיצה על ההתראה עצמה פותחת את האפליקציה
@@ -1251,25 +1322,6 @@
     }catch(e){}
   }
   checkInviteDeepLink();
-
-  function startApp(){
-    els.gate.hidden = true; els.mainApp.hidden = false; els.editProfileBtn.hidden = false;
-
-    watchId = navigator.geolocation.watchPosition(function(pos){
-      myPos = {lat:pos.coords.latitude, lng:pos.coords.longitude};
-      renderRadar(); renderList();
-      checkHomeAutoEnd();
-    }, function(){ /* keep last known position on transient errors */ }, {
-      enableHighAccuracy:true, maximumAge:15000, timeout:20000
-    });
-
-    connectSocket();
-    renderRadar(); renderList(); renderCta();
-    renderAccountPanel(); renderWalks(); renderNotifications();
-    showOnboardingModal();
-    var existingProfile = getProfile();
-    if(existingProfile && existingProfile.dogName && !getMyCode()) syncProfileToServer(existingProfile);
-  }
 
   function connectSocket(){
     socket = io();
@@ -1383,7 +1435,7 @@
     if(!profile || !profile.dogName){
       formPurpose = "start"; els.profileForm.hidden = false; updateProfileSubmitLabel(); setDogNameEditable(true); return;
     }
-    startWalk(profile);
+    ensureLocationThen(function(){ startWalk(profile); });
   });
 
   els.profileForm.addEventListener("submit", function(e){
@@ -1405,7 +1457,7 @@
       writeMyDoc(profile);
       if(meMarker){ meMarker.setIcon(meIcon(profile)); meMarker.setTooltipContent(escapeHtml(profile.dogName)); }
     }
-    else if(formPurpose === "start"){ startWalk(profile); }
+    else if(formPurpose === "start"){ ensureLocationThen(function(){ startWalk(profile); }); }
     formPurpose = null;
   });
 
@@ -1634,57 +1686,96 @@
     });
   }
 
-  // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, תמיד מוצגים כאן גם כשהם לא בטיול כרגע.
-  // גם כאן מעדכנים רק את מה שהשתנה, כדי שתמונת הכלב לא תהבהב בכל עדכון =====
-  function upsertFriendCard(id){
+  // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, מוצגים כשורה אופקית של תמונה+שם בלבד.
+  // לחיצה על חבר/ה פותחת (ולחיצה נוספת סוגרת) כרטיסיית פרטים מתחת לשורה עם הסטטוס,
+  // כפתור "בוא/י לגינה" (כשהדדי) והסרה מהמועדפים - כך שהרשימה עצמה נשארת קומפקטית.
+  // גם כאן מעדכנים רק את מה שהשתנה בפועל, כדי שתמונת הכלב לא תהבהב בכל עדכון =====
+  var selectedFriendId = null;
+
+  function upsertFriendChip(id){
     var live = latestDocs[id];
     var saved = myFavoriteProfiles[id];
     var data = live || saved;
-    var name = (data && data.dogName) || "כלב/ה";
+    var name = displayDogName(data && data.dogName) || "חבר/ה";
+    var icon = data && data.dogIcon;
+    var color = data && data.dogColor;
+
+    var chip = els.friendsList.querySelector('.friend-chip[data-wid="'+id+'"]');
+    if(!chip){
+      chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "friend-chip";
+      chip.setAttribute("data-wid", id);
+      chip.innerHTML = '<div class="dog-badge list"></div><div class="friend-chip-name"></div>';
+      chip.addEventListener("click", function(){
+        selectedFriendId = (selectedFriendId === id) ? null : id;
+        renderFriends();
+      });
+      els.friendsList.appendChild(chip);
+    } else {
+      els.friendsList.appendChild(chip); // ממקם בסדר הנכון בלי להרוס את הצומת/התמונה
+    }
+
+    applyBadge(chip.querySelector(".dog-badge"), icon, color);
+    chip.querySelector(".friend-chip-name").textContent = name;
+    chip.classList.toggle("selected", selectedFriendId === id);
+  }
+
+  function renderFriendDetail(){
+    if(!els.friendDetail) return;
+    var id = selectedFriendId;
+    if(!id || myFavoritesOut.indexOf(id) === -1){
+      els.friendDetail.hidden = true;
+      els.friendDetail.removeAttribute("data-wid");
+      els.friendDetail.innerHTML = "";
+      return;
+    }
+    var live = latestDocs[id];
+    var saved = myFavoriteProfiles[id];
+    var data = live || saved;
+    var name = displayDogName(data && data.dogName) || "חבר/ה";
     var breed = data && data.dogBreed;
     var icon = data && data.dogIcon;
     var color = data && data.dogColor;
 
-    var card = els.friendsList.querySelector('.walker-card[data-wid="'+id+'"]');
-    if(!card){
-      card = document.createElement("div");
-      card.className = "walker-card";
-      card.setAttribute("data-wid", id);
-      card.innerHTML =
+    els.friendDetail.hidden = false;
+    if(els.friendDetail.getAttribute("data-wid") !== id){
+      els.friendDetail.setAttribute("data-wid", id);
+      els.friendDetail.innerHTML =
         '<div class="wc-row">' +
           '<div class="dog-badge list"></div>' +
           '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
           '<div class="meta"></div>' +
         '</div>' +
         '<div class="wc-actions">' +
-          '<button type="button" class="star-btn active" data-star="'+id+'" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
-        '</div>';
-      els.friendsList.appendChild(card);
-      card.querySelector(".star-btn").addEventListener("click", function(){
+          '<button type="button" class="star-btn active" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
+        '</div>' +
+        '<div class="friend-detail-hint" hidden></div>';
+      els.friendDetail.querySelector(".star-btn").addEventListener("click", function(){
         if(!socket) return;
         socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
+        selectedFriendId = null;
+        renderFriends();
       });
-    } else {
-      els.friendsList.appendChild(card); // ממקם בסדר הנכון בלי להרוס את הצומת/התמונה
     }
 
-    applyBadge(card.querySelector(".dog-badge"), icon, color);
-    card.querySelector(".name").textContent = name;
-    var dogEl = card.querySelector(".dog");
+    applyBadge(els.friendDetail.querySelector(".dog-badge"), icon, color);
+    els.friendDetail.querySelector(".name").textContent = name;
+    var dogEl = els.friendDetail.querySelector(".dog");
     if(breed){ dogEl.hidden = false; dogEl.textContent = breed; }
     else { dogEl.hidden = true; dogEl.textContent = ""; }
-    card.querySelector(".meta").innerHTML = live
+    els.friendDetail.querySelector(".meta").innerHTML = live
       ? '<span class="chip dist">🟢 בטיול עכשיו</span>'
       : '<span class="chip">לא בטיול כרגע</span>';
 
-    var actions = card.querySelector(".wc-actions");
+    var actions = els.friendDetail.querySelector(".wc-actions");
     var inviteBtn = actions.querySelector(".invite-btn");
+    var hint = els.friendDetail.querySelector(".friend-detail-hint");
     if(isMutualWith(id)){
       if(!inviteBtn){
         inviteBtn = document.createElement("button");
         inviteBtn.type = "button";
         inviteBtn.className = "invite-btn";
-        inviteBtn.setAttribute("data-invite", id);
         inviteBtn.textContent = "🐾 בוא/י לגינה";
         inviteBtn.addEventListener("click", function(){
           if(!socket) return;
@@ -1692,8 +1783,10 @@
         });
         actions.appendChild(inviteBtn);
       }
-    } else if(inviteBtn){
-      inviteBtn.remove();
+      if(hint) hint.hidden = true;
+    } else {
+      if(inviteBtn) inviteBtn.remove();
+      if(hint){ hint.hidden = false; hint.textContent = "אפשר לשלוח הזמנה רק כשגם הם מסמנים אתכם בכוכב בחזרה."; }
     }
   }
 
@@ -1702,14 +1795,17 @@
     var ids = myFavoritesOut;
     els.friendsCount.textContent = ids.length ? (ids.length + (ids.length===1 ? " מועדף/ת" : " מועדפים")) : "";
     if(!ids.length){
-      els.friendsEmptyNote.hidden=false; els.friendsList.hidden=true; els.friendsList.innerHTML=""; return;
+      els.friendsEmptyNote.hidden=false; els.friendsList.hidden=true; els.friendsList.innerHTML="";
+      selectedFriendId = null; renderFriendDetail();
+      return;
     }
     els.friendsEmptyNote.hidden=true; els.friendsList.hidden=false;
     var seen = {};
-    ids.forEach(function(id){ seen[id] = true; upsertFriendCard(id); });
-    Array.prototype.forEach.call(els.friendsList.querySelectorAll(".walker-card"), function(card){
-      if(!seen[card.getAttribute("data-wid")]) card.remove();
+    ids.forEach(function(id){ seen[id] = true; upsertFriendChip(id); });
+    Array.prototype.forEach.call(els.friendsList.querySelectorAll(".friend-chip"), function(chip){
+      if(!seen[chip.getAttribute("data-wid")]) chip.remove();
     });
+    renderFriendDetail();
   }
 
   if("serviceWorker" in navigator){
