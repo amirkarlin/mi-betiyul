@@ -367,7 +367,7 @@
 
   .splash-screen{ position:fixed; inset:0; z-index:10000; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:22px; background:var(--primary); color:var(--primary-ink);
-    transition:opacity .4s ease; }
+    transition:opacity .5s ease; }
   .splash-screen.hide{ opacity:0; pointer-events:none; }
   .splash-mark{ width:64px;height:64px; display:flex; align-items:center; justify-content:center; }
   .splash-mark svg{ width:44px;height:44px; fill:var(--primary-ink); }
@@ -653,8 +653,8 @@
     }
     setTimeout(function(){
       els.splashScreen.classList.add("hide");
-      setTimeout(function(){ if(els.splashScreen) els.splashScreen.remove(); }, 450);
-    }, 1700);
+      setTimeout(function(){ if(els.splashScreen) els.splashScreen.remove(); }, 500);
+    }, 3000);
   }
   showSplashScreen();
 
