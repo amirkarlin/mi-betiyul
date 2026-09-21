@@ -361,10 +361,6 @@
   .onboarding-list li{ display:flex; align-items:flex-start; gap:9px; font-size:.86rem; line-height:1.55;
     background:var(--surface); border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:10px 12px; }
   .onboarding-list li .paw-ico{ flex:0 0 auto; margin-top:1px; }
-  .onboarding-dontshow{ display:flex; align-items:center; gap:8px; font-size:.78rem; color:var(--text);
-    background:var(--surface); border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:10px 12px; }
-  .onboarding-dontshow input{ width:16px;height:16px; flex:0 0 auto; accent-color:var(--primary); }
-
   .splash-screen{ position:fixed; inset:0; z-index:10000; display:flex; flex-direction:column;
     align-items:center; justify-content:center; gap:22px; background:var(--primary); color:var(--primary-ink);
     transition:opacity .5s ease; }
@@ -578,10 +574,6 @@
       <li><span class="paw-ico">🐾</span><span>מקבלים התראה כשמזמינים אתכם, ועונים "יאללה" ישירות מההתראה או מהאפליקציה</span></li>
       <li><span class="paw-ico">🐾</span><span>אפשר להגדיר כתובת "בית" כדי שהטיול יסתיים לבד כשחוזרים</span></li>
     </ul>
-    <label class="onboarding-dontshow">
-      <input type="checkbox" id="onboardingDontShowAgain">
-      <span>הבנתי, אל תראה לי את זה שוב</span>
-    </label>
   </div>
 </div>
 
@@ -623,7 +615,7 @@
     homeAddressError:$("homeAddressError"), homeAutoEndRow:$("homeAutoEndRow"), homeAutoEndToggle:$("homeAutoEndToggle"),
     removeHomeBtn:$("removeHomeBtn"),
     onboardingOverlay:$("onboardingOverlay"), onboardingDogsRow:$("onboardingDogsRow"),
-    onboardingCloseBtn:$("onboardingCloseBtn"), onboardingDontShowAgain:$("onboardingDontShowAgain"),
+    onboardingCloseBtn:$("onboardingCloseBtn"),
     mapSection:$("mapSection"),
     splashScreen:$("splashScreen"), splashDogsRow:$("splashDogsRow"),
     brandMarkBtn:$("brandMarkBtn"), editProfileBtnIcon:$("editProfileBtnIcon")
@@ -640,34 +632,9 @@
     return null;
   }
 
-  // ===== מסך פתיחה (Splash) - מוצג לכמה שניות עם אנימציית עיגולי כלבים (כמו בבחירת
-  // תמונת הכלב), בזמן שהאפליקציה עצמה כבר נטענת מתחתיו ברקע, ואז נעלם לצמיתות בכניסה
-  // הזו - לא תלוי במיקום/סוקט/שום דבר אחר, כדי שלא "ייתקע" אם משהו אחר איטי =====
-  function showSplashScreen(){
-    if(!els.splashScreen) return;
-    if(els.splashDogsRow){
-      var picks = ["g3","g8","g12","g17","g22"];
-      els.splashDogsRow.innerHTML = picks.map(function(id){
-        return '<img src="'+escapeHtml(galleryImageSrc(id))+'" alt="">';
-      }).join("");
-    }
-    setTimeout(function(){
-      els.splashScreen.classList.add("hide");
-      setTimeout(function(){ if(els.splashScreen) els.splashScreen.remove(); }, 500);
-    }, 3000);
-  }
-  showSplashScreen();
-
-  // ===== מודאל היכרות ("Onboarding") שמוצג עם הכניסה הראשונה לאפליקציה, ומסביר בקצרה
-  // את התכונות המרכזיות. דגל קבוע ב-localStorage שולט אם הוא כבר "נסגר לצמיתות".
-  // תיבת הסימון תמיד מתחילה ריקה (לא מסומנת) - המודאל ימשיך להופיע בכל כניסה עד
-  // שמסמנים אותה במפורש וסוגרים =====
-  function onboardingDismissedForever(){
-    try{ return localStorage.getItem("mibetiyul_onboarding_dismissed") === "1"; }catch(e){ return false; }
-  }
-  function markOnboardingDismissedForever(){
-    try{ localStorage.setItem("mibetiyul_onboarding_dismissed", "1"); }catch(e){}
-  }
+  // ===== מודאל היכרות ("Onboarding") - מסביר בקצרה את התכונות המרכזיות. בינתיים אין
+  // אופציית "הבנתי, אל תראה לי את זה שוב": הוא מוצג בכל כניסה לאפליקציה, בלי תלות
+  // בהיסטוריה/פרופיל, ורק כפתור ה-X סוגר אותו לביקור הנוכחי =====
   function populateOnboardingDogsRow(){
     if(!els.onboardingDogsRow || els.onboardingDogsRow.children.length) return;
     var picks = ["g1","g5","g9","g14","g20"];
@@ -676,17 +643,37 @@
     }).join("");
   }
   function showOnboardingModal(){
-    if(!els.onboardingOverlay || onboardingDismissedForever()) return;
+    if(!els.onboardingOverlay) return;
     populateOnboardingDogsRow();
-    if(els.onboardingDontShowAgain) els.onboardingDontShowAgain.checked = false;
     els.onboardingOverlay.hidden = false;
   }
   if(els.onboardingCloseBtn){
     els.onboardingCloseBtn.addEventListener("click", function(){
-      if(els.onboardingDontShowAgain && els.onboardingDontShowAgain.checked) markOnboardingDismissedForever();
       els.onboardingOverlay.hidden = true;
     });
   }
+
+  // ===== מסך פתיחה (Splash) - מוצג לכמה שניות עם אנימציית עיגולי כלבים (כמו בבחירת
+  // תמונת הכלב), בזמן שהאפליקציה עצמה כבר נטענת מתחתיו ברקע. ברגע שהוא נעלם, מודאל
+  // ההיכרות נפתח מיד אחריו (בכל כניסה) - לא תלוי במיקום/סוקט/שום דבר אחר, כדי שלא
+  // "ייתקע" אם משהו אחר איטי =====
+  function showSplashScreen(){
+    if(!els.splashScreen){ showOnboardingModal(); return; }
+    if(els.splashDogsRow){
+      var picks = ["g3","g8","g12","g17","g22"];
+      els.splashDogsRow.innerHTML = picks.map(function(id){
+        return '<img src="'+escapeHtml(galleryImageSrc(id))+'" alt="">';
+      }).join("");
+    }
+    setTimeout(function(){
+      els.splashScreen.classList.add("hide");
+      setTimeout(function(){
+        if(els.splashScreen) els.splashScreen.remove();
+        showOnboardingModal();
+      }, 500);
+    }, 3000);
+  }
+  showSplashScreen();
 
   var THEME_COLORS = ["#F4B400","#E63946","#457B9D","#2A9D8F","#7B2CBF","#FF6FB5","#2F5233","#6C757D"];
 
@@ -1348,7 +1335,6 @@
     connectSocket();
     renderRadar(); renderList(); renderCta();
     renderAccountPanel(); renderWalks(); renderNotifications();
-    showOnboardingModal();
     updateLocationUI();
   }
   initApp();
