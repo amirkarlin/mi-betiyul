@@ -389,6 +389,35 @@
   .edit-btn-icon img{ width:100%;height:100%; border-radius:50%; object-fit:cover; display:block; }
   .icon-btn.has-photo{ padding:0; overflow:hidden; border-radius:50%; }
 
+  /* ===== תפריט נגישות ===== */
+  .a11y-toggle-btn{ position:fixed; bottom:16px; right:16px; z-index:9500; width:52px;height:52px;
+    border-radius:50%; border:none; cursor:pointer; background:var(--primary); color:var(--primary-ink);
+    font-size:1.5rem; line-height:1; display:flex; align-items:center; justify-content:center;
+    box-shadow:var(--shadow); }
+  .a11y-panel{ position:fixed; bottom:76px; right:16px; z-index:9500; width:250px; max-width:calc(100vw - 32px);
+    background:var(--surface); color:var(--text); border-radius:var(--radius-md); box-shadow:var(--shadow);
+    padding:14px; display:flex; flex-direction:column; gap:8px; }
+  .a11y-panel-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:2px; }
+  .a11y-panel-head h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.05rem; margin:0; }
+  .a11y-panel .close-x-btn{ position:static; width:28px;height:28px; flex:0 0 auto; }
+  .a11y-row{ display:flex; gap:8px; }
+  .a11y-opt-btn{ appearance:none; cursor:pointer; border:1.5px solid var(--ring-strong); background:var(--surface-2);
+    color:var(--text); border-radius:var(--radius-sm); padding:9px 8px; font-size:.85rem; font-weight:600;
+    font-family:inherit; flex:1; }
+  .a11y-opt-btn.active{ background:var(--primary); color:var(--primary-ink); border-color:var(--primary); }
+  .a11y-opt-wide{ width:100%; }
+  .a11y-reset-btn{ appearance:none; border:none; background:none; cursor:pointer; color:var(--text-muted);
+    font-size:.8rem; text-decoration:underline; padding:4px 0 0; font-family:inherit; }
+
+  /* אפקטים גלובליים שמופעלים ע"י תפריט הנגישות */
+  html.a11y-contrast, html.a11y-contrast body{ background:#000 !important; }
+  html.a11y-contrast *{ background-color:#000 !important; color:#fff !important; border-color:#fff !important;
+    box-shadow:none !important; background-image:none !important; }
+  html.a11y-contrast a, html.a11y-contrast button, html.a11y-contrast .btn-primary{ color:#ffe066 !important; }
+  html.a11y-grayscale{ filter:grayscale(100%) !important; }
+  html.a11y-underline-links a, html.a11y-underline-links button{ text-decoration:underline !important; }
+  html.a11y-stop-anim, html.a11y-stop-anim *{ animation:none !important; transition:none !important; }
+
   [hidden]{display:none!important;}
 </style>
 </head>
@@ -593,6 +622,26 @@
 </div>
 
 <div class="toast" id="toast"></div>
+
+<button type="button" class="a11y-toggle-btn" id="a11yToggleBtn" aria-haspopup="true" aria-expanded="false"
+  aria-controls="a11yPanel" title="תפריט נגישות" aria-label="תפריט נגישות">
+  <span aria-hidden="true">♿</span>
+</button>
+<div class="a11y-panel" id="a11yPanel" role="dialog" aria-label="תפריט נגישות" hidden>
+  <div class="a11y-panel-head">
+    <h2>נגישות</h2>
+    <button type="button" class="close-x-btn" id="a11yCloseBtn" aria-label="סגירה">✕</button>
+  </div>
+  <div class="a11y-row">
+    <button type="button" class="a11y-opt-btn" id="a11yFontMinus" aria-label="הקטנת טקסט">א-</button>
+    <button type="button" class="a11y-opt-btn" id="a11yFontPlus" aria-label="הגדלת טקסט">א+</button>
+  </div>
+  <button type="button" class="a11y-opt-btn a11y-opt-wide" id="a11yContrastBtn" aria-pressed="false">ניגודיות גבוהה</button>
+  <button type="button" class="a11y-opt-btn a11y-opt-wide" id="a11yGrayscaleBtn" aria-pressed="false">גווני אפור</button>
+  <button type="button" class="a11y-opt-btn a11y-opt-wide" id="a11yUnderlineBtn" aria-pressed="false">הדגשת קישורים</button>
+  <button type="button" class="a11y-opt-btn a11y-opt-wide" id="a11yStopAnimBtn" aria-pressed="false">עצירת אנימציות</button>
+  <button type="button" class="a11y-reset-btn" id="a11yResetBtn">איפוס הגדרות נגישות</button>
+</div>
 
 <script src="/socket.io/socket.io.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
@@ -1905,6 +1954,96 @@
     });
   }
 
+})();
+</script>
+
+<script>
+(function(){
+  "use strict";
+  var KEY = "mibetiyul_a11y_v1";
+  var root = document.documentElement;
+  var btn = document.getElementById("a11yToggleBtn");
+  var panel = document.getElementById("a11yPanel");
+  var closeBtn = document.getElementById("a11yCloseBtn");
+  var fontPlusBtn = document.getElementById("a11yFontPlus");
+  var fontMinusBtn = document.getElementById("a11yFontMinus");
+  var contrastBtn = document.getElementById("a11yContrastBtn");
+  var grayscaleBtn = document.getElementById("a11yGrayscaleBtn");
+  var underlineBtn = document.getElementById("a11yUnderlineBtn");
+  var stopAnimBtn = document.getElementById("a11yStopAnimBtn");
+  var resetBtn = document.getElementById("a11yResetBtn");
+  if(!btn || !panel) return;
+
+  var MIN_STEP = -3, MAX_STEP = 5, STEP_PCT = 10;
+  var DEFAULT_STATE = { fontStep:0, contrast:false, grayscale:false, underline:false, stopAnim:false };
+  var state;
+
+  function loadState(){
+    try{
+      var raw = localStorage.getItem(KEY);
+      if(!raw) return Object.assign({}, DEFAULT_STATE);
+      var parsed = JSON.parse(raw);
+      return Object.assign({}, DEFAULT_STATE, parsed);
+    }catch(e){ return Object.assign({}, DEFAULT_STATE); }
+  }
+  function saveState(){
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+  }
+
+  function applyState(){
+    root.style.fontSize = state.fontStep ? (100 + state.fontStep*STEP_PCT) + "%" : "";
+    root.classList.toggle("a11y-contrast", !!state.contrast);
+    root.classList.toggle("a11y-grayscale", !!state.grayscale);
+    root.classList.toggle("a11y-underline-links", !!state.underline);
+    root.classList.toggle("a11y-stop-anim", !!state.stopAnim);
+    [[contrastBtn,state.contrast],[grayscaleBtn,state.grayscale],[underlineBtn,state.underline],[stopAnimBtn,state.stopAnim]]
+      .forEach(function(pair){
+        var el = pair[0], on = !!pair[1];
+        if(!el) return;
+        el.classList.toggle("active", on);
+        el.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+  }
+
+  state = loadState();
+  applyState();
+
+  function openPanel(){ panel.hidden = false; btn.setAttribute("aria-expanded", "true"); }
+  function closePanel(){ panel.hidden = true; btn.setAttribute("aria-expanded", "false"); }
+
+  btn.addEventListener("click", function(){ if(panel.hidden) openPanel(); else closePanel(); });
+  if(closeBtn) closeBtn.addEventListener("click", closePanel);
+
+  document.addEventListener("click", function(e){
+    if(panel.hidden) return;
+    if(panel.contains(e.target) || btn.contains(e.target)) return;
+    closePanel();
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && !panel.hidden) closePanel();
+  });
+
+  if(fontPlusBtn) fontPlusBtn.addEventListener("click", function(){
+    state.fontStep = Math.min(MAX_STEP, state.fontStep + 1); applyState(); saveState();
+  });
+  if(fontMinusBtn) fontMinusBtn.addEventListener("click", function(){
+    state.fontStep = Math.max(MIN_STEP, state.fontStep - 1); applyState(); saveState();
+  });
+  if(contrastBtn) contrastBtn.addEventListener("click", function(){
+    state.contrast = !state.contrast; applyState(); saveState();
+  });
+  if(grayscaleBtn) grayscaleBtn.addEventListener("click", function(){
+    state.grayscale = !state.grayscale; applyState(); saveState();
+  });
+  if(underlineBtn) underlineBtn.addEventListener("click", function(){
+    state.underline = !state.underline; applyState(); saveState();
+  });
+  if(stopAnimBtn) stopAnimBtn.addEventListener("click", function(){
+    state.stopAnim = !state.stopAnim; applyState(); saveState();
+  });
+  if(resetBtn) resetBtn.addEventListener("click", function(){
+    state = Object.assign({}, DEFAULT_STATE); applyState(); saveState();
+  });
 })();
 </script>
 </body>
