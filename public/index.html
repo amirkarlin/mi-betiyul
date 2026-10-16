@@ -287,6 +287,7 @@
   .invite-btn{ appearance:none; border:none; border-radius:999px; background:var(--primary); color:var(--primary-ink);
     font-weight:700; font-size:.78rem; padding:8px 14px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
   .invite-btn:active{transform:scale(.96);}
+  .popup-invite-btn{ margin-top:8px; }
 
   /* "החברים שלי" - שורה אופקית של תמונה+שם בלבד; לחיצה על חבר/ה פותחת כרטיסיית
      פרטים (הזמנה/הסרה מהמועדפים) מתחת לשורה, במקום להציג הכל תמיד לכל חבר */
@@ -1694,6 +1695,15 @@
     meMarker = L.marker([myPos.lat, myPos.lng], { icon: meIcon(), zIndexOffset:1000 })
       .addTo(leafletMap).bindPopup("המיקום שלך")
       .bindTooltip(escapeHtml(myProfile.dogName || "אני"), {direction:"top", offset:[0,-18], className:"dog-tooltip"});
+
+    // האזנה אחת (event delegation) לכפתור "בוא/י לגינה" שבתוך חלונית המידע (popup) של סמן על
+    // המפה - כך שהכפתור עובד גם כשתוכן החלונית מוחלף דינמית בכל עדכון מיקום (setPopupContent)
+    leafletMap.getContainer().addEventListener("click", function(e){
+      var btn = e.target.closest ? e.target.closest(".popup-invite-btn") : null;
+      if(!btn || !socket) return;
+      socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-popup-invite") });
+      leafletMap.closePopup();
+    });
   }
 
   els.recenterBtn.addEventListener("click", function(){
@@ -1727,7 +1737,8 @@
       seen[w.id] = true;
       var popupHtml = "<b>"+escapeHtml(w.data.dogName)+"</b>"+
         (w.data.dogBreed ? "<br>"+escapeHtml(w.data.dogBreed) : "") +
-        "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt);
+        "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt) +
+        (isMutualWith(w.id) ? "<br><button type='button' class='invite-btn popup-invite-btn' data-popup-invite='"+escapeHtml(w.id)+"'>🐾 בוא/י לגינה</button>" : "");
       if(mapMarkers[w.id]){
         mapMarkers[w.id].setLatLng([w.data.lat, w.data.lng]);
         mapMarkers[w.id].setPopupContent(popupHtml);
