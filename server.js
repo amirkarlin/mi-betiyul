@@ -28,7 +28,13 @@ function displayDogName(name) {
   if (!trimmed || trimmed === DEFAULT_DOG_NAME) return null;
   return trimmed;
 }
-const DOG_ICON_RE = /^g([1-9]|1[0-9]|2[0-6])$/; // תמונות הגלריה: g1..g26 (public/dog-icons/g*.png)
+// מספר תמונות הגלריה הקיימות כרגע (public/dog-icons/g1.png ... g<GALLERY_ICON_COUNT>.png).
+// *** צריך להתעדכן ל-GALLERY_COUNT ב-public/index.html בכל פעם שמוסיפים תמונות לגלריה! ***
+// אם המספר כאן קטן מדי, השרת "ינקה" (sanitizeDogIcon יחזיר null) כל dogIcon עם מספר
+// גבוה מהטווח - והתוצאה היא שמשתמש/ת שבחר/ה תמונה חדשה יראה את האייקון שלו/שלה כראוי
+// (כי זה מגיע מהפרופיל המקומי, בלי לעבור sanitize), אבל כל שאר המשתמשים יראו עבורו/ה
+// רק אייקון כף-רגל גנרי במקום - בדיוק הבאג שתוקן ב-2026-10-16.
+const GALLERY_ICON_COUNT = 63;
 const ID_RE = /^[A-Za-z0-9-]{1,64}$/; // תואם למזהים שנוצרים ב-localStorage בצד הלקוח
 const INVITE_COOLDOWN_MS = 10 * 60 * 1000; // מגבלת קצב: הזמנה אחת לכל זוג כל 10 דק'
 
@@ -399,7 +405,11 @@ function sanitizeDogColor(v) {
 }
 
 function sanitizeDogIcon(v) {
-  return typeof v === "string" && DOG_ICON_RE.test(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const m = /^g([1-9][0-9]*)$/.exec(v);
+  if (!m) return null;
+  const n = parseInt(m[1], 10);
+  return n >= 1 && n <= GALLERY_ICON_COUNT ? v : null;
 }
 
 function sanitizeProfileInput(body) {
