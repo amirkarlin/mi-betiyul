@@ -133,6 +133,12 @@ function generateUniqueCode() {
 function isValidId(v) {
   return typeof v === "string" && ID_RE.test(v);
 }
+// מנקה/מקצר תווית מיקום חופשית (כתובת/שם מקום) שמגיעה מהצעת "נקודת מפגש" - מוצגת
+// למשתמש/ת אחר/ת (בהתראת Push וב"התראות שקיבלתי"), לכן חייבת לעבור חיתוך אורך בטוח
+function sanitizeMeetLabel(v) {
+  if (typeof v !== "string") return "";
+  return v.trim().slice(0, 160);
+}
 function getOutgoingFavorites(id) {
   return Array.isArray(store.favorites[id]) ? store.favorites[id] : [];
 }
@@ -205,6 +211,14 @@ function addNotification(id, entry) {
     clean.fromId = entry.fromId;
     clean.toId = entry.toId;
     clean.replied = false;
+    // ===== "הצעת נקודת מפגש" (אופציונלי) - כתובת/נקודה במפה שצורפה להזמנה, כדי שאפשר
+    // יהיה להציג אותה ב"התראות שקיבלתי" ולפתוח ניווט אליה. isValidCoord מוגדר בהמשך
+    // הקובץ, אבל הצהרת function מורמת (hoisting) אז הקריאה כאן תקינה =====
+    if (isValidCoord(entry.meetLat, entry.meetLng)) {
+      clean.meetLat = entry.meetLat;
+      clean.meetLng = entry.meetLng;
+      clean.meetLabel = sanitizeMeetLabel(entry.meetLabel);
+    }
   }
   const list = Array.isArray(store.notifications[id]) ? store.notifications[id] : [];
   list.push(clean);
@@ -548,7 +562,10 @@ io.on("connection", (socket) => {
   });
 
   // ===== הזמנת "בוא/י לגינה" - דורשת כוכב הדדי, נשלחת דרך Push גם אם היעד/ת מנותק/ת.
-  // אפשר לשלוח גם בלי להיות בטיול כרגע - השם לכותרת ההתראה נלקח מהפרופיל השמור =====
+  // אפשר לשלוח גם בלי להיות בטיול כרגע - השם לכותרת ההתראה נלקח מהפרופיל השמור.
+  // אפשר גם לצרף "הצעת נקודת מפגש" (meetLat/meetLng/meetLabel אופציונליים, שנבחרו
+  // בלקוח ע"י הקלדת כתובת שעברה גיאוקוד או לחיצה על מיני-מפה) - זו אותה תשתית הזמנה/
+  // יאללה בדיוק, רק עם תוכן התראה שונה כשיש מיקום מצורף =====
   socket.on("invite:send", (data) => {
     if (!data || !isValidId(data.id) || !isValidId(data.targetId) || data.id === data.targetId) return;
     const fromId = data.id, toId = data.targetId;
@@ -576,17 +593,36 @@ io.on("connection", (socket) => {
     }
     lastInviteAt.set(cooldownKey, now);
 
-    const payload = JSON.stringify({
-      title: "🐾 " + fromName + " מזמינ/ה אותך לגינה!",
-      body: "לחצו כדי לפתוח את מי בטיול ולראות איפה, או הגיבו ישר מההתראה.",
+    const hasLocation = isValidCoord(data.meetLat, data.meetLng);
+    const meetLabel = hasLocation ? (sanitizeMeetLabel(data.meetLabel) || "נקודה שסומנה במפה") : "";
+
+    const pushTitle = hasLocation
+      ? "📍 " + fromName + " מציע/ה נקודת מפגש!"
+      : "🐾 " + fromName + " מזמינ/ה אותך לגינה!";
+    const pushBody = hasLocation
+      ? "מוצע להיפגש ב: " + meetLabel + " · לחצו כדי לפתוח ולהגיב."
+      : "לחצו כדי לפתוח את מי בטיול ולראות איפה, או הגיבו ישר מההתראה.";
+    const notifMessage = hasLocation
+      ? "📍 " + fromName + " מציע/ה להיפגש ב-" + meetLabel
+      : "🐾 " + fromName + " מזמינ/ה אתכם לגינה!";
+
+    const payload = JSON.stringify(Object.assign({
+      title: pushTitle,
+      body: pushBody,
       kind: "invite",
       fromId: fromId,
       toId: toId
-    });
+    }, hasLocation ? { meetLat: data.meetLat, meetLng: data.meetLng, meetLabel: meetLabel } : {}));
     webpush.sendNotification(sub, payload)
       .then(() => {
-        addNotification(toId, { kind: "invite", message: "🐾 " + fromName + " מזמינ/ה אתכם לגינה!", fromId: fromId, toId: toId });
-        socket.emit("invite:result", { ok: true, targetId: toId });
+        const notifEntry = { kind: "invite", message: notifMessage, fromId: fromId, toId: toId };
+        if (hasLocation) {
+          notifEntry.meetLat = data.meetLat;
+          notifEntry.meetLng = data.meetLng;
+          notifEntry.meetLabel = meetLabel;
+        }
+        addNotification(toId, notifEntry);
+        socket.emit("invite:result", { ok: true, targetId: toId, hasLocation: hasLocation });
       })
       .catch((err) => {
         if (err && (err.statusCode === 404 || err.statusCode === 410)) {

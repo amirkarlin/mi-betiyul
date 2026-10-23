@@ -334,6 +334,7 @@
   .notif-entry .notif-when{ font-size:.72rem; color:var(--text-muted); margin-top:3px; }
   .notif-unread-dot{ width:9px;height:9px;border-radius:50%; background:var(--primary); flex:0 0 auto; margin-top:6px; }
   .notif-entry .invite-btn{ margin-top:8px; }
+  .notif-entry .link-btn{ display:inline-block; margin-top:6px; }
   .notif-entry .notif-replied{ font-size:.78rem; color:var(--text-muted); margin-top:6px; }
 
   .invite-reply-banner{ position:fixed; left:16px; right:16px; bottom:16px; z-index:50; max-width:420px;
@@ -346,6 +347,34 @@
 
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
+
+  /* ===== קוביית פידבק קבועה בתחתית העמוד (גרסת בטא) ===== */
+  .feedback-footer{ margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:10px;
+    text-align:center; background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow);
+    padding:18px 16px; }
+  .feedback-footer-badge{ font-size:.7rem; font-weight:800; letter-spacing:.5px; color:var(--accent-ink);
+    background:color-mix(in srgb, var(--accent) 24%, transparent); border-radius:999px; padding:4px 12px; }
+  .feedback-footer-text{ font-size:.82rem; color:var(--text-muted); line-height:1.6; margin:0; max-width:34ch; }
+  .feedback-footer .btn{ padding:10px 22px; font-size:.86rem; text-decoration:none; display:inline-block; }
+
+  /* ===== הצעת נקודת מפגש - מודאל עם שתי דרכים לבחור מיקום: הקלדת כתובת (גיאוקוד
+     דרך אותו /api/geocode ששימש כבר להגדרת "בית"), או לחיצה על מיני-מפה ייעודית =====*/
+  .meetup-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9800;
+    display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  .meetup-modal{ position:relative; width:100%; max-width:380px; box-sizing:border-box;
+    background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:0 12px 36px -10px rgba(0,0,0,.55);
+    padding:34px 16px 16px; display:flex; flex-direction:column; gap:14px; max-height:88vh; overflow-y:auto; }
+  .meetup-modal h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.1rem; margin:0; text-align:center; }
+  .meetup-target{ font-weight:700; text-align:center; font-size:.92rem; }
+  .meetup-section{ display:flex; flex-direction:column; gap:6px; }
+  .meetup-mini-map{ height:220px; border-radius:var(--radius-md); overflow:hidden; box-shadow:var(--shadow); }
+  .meetup-chosen{ font-size:.84rem; background:var(--surface); border-radius:var(--radius-sm);
+    padding:8px 12px; box-shadow:var(--shadow); }
+  .meetup-actions{ display:flex; gap:10px; }
+  .meetup-actions .btn{ flex:1; padding:12px 16px; font-size:.9rem; }
+  .meetup-actions .btn-secondary{ background:var(--surface-2); color:var(--text); box-shadow:var(--shadow); }
+  .meetup-btn{ background:var(--accent); color:var(--accent-ink); }
+  .popup-meetup-btn{ margin-top:6px; }
 
   .onboarding-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999;
     display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
@@ -605,7 +634,38 @@
       המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
     </footer>
 
+    <div class="feedback-footer">
+      <span class="feedback-footer-badge">🧪 גרסת בטא</span>
+      <p class="feedback-footer-text">האפליקציה עדיין בגרסת בטא - אם יש לכם הצעות לשיפור או פידבק, נשמח לשמוע מכם!</p>
+      <a class="btn btn-primary" id="feedbackMailBtn" href="#">יצירת קשר ✉️</a>
+    </div>
+
   </main>
+</div>
+
+<div class="meetup-overlay" id="meetupOverlay" hidden>
+  <div class="meetup-modal">
+    <button type="button" class="close-x-btn" id="meetupCloseBtn" aria-label="סגירה">✕</button>
+    <h2>📍 הצעת נקודת מפגש</h2>
+    <div class="meetup-target" id="meetupTarget"></div>
+    <div class="meetup-section">
+      <div class="account-code-label">הקלידו כתובת</div>
+      <div class="account-home-row">
+        <input type="text" id="meetupAddressInput" placeholder="לדוגמה: הפארק הירוק, רעננה" autocomplete="off">
+        <button type="button" class="btn btn-primary" id="meetupAddressBtn">איתור</button>
+      </div>
+      <div class="field-error" id="meetupAddressError" hidden></div>
+    </div>
+    <div class="meetup-section">
+      <div class="account-code-label">או לחצו במקום הרצוי על המפה</div>
+      <div id="meetupMiniMap" class="meetup-mini-map"></div>
+    </div>
+    <div class="meetup-chosen" id="meetupChosen" hidden>נבחרה נקודה: <span id="meetupChosenLabel"></span></div>
+    <div class="meetup-actions">
+      <button type="button" class="btn btn-primary" id="meetupSendBtn" disabled>שליחת ההצעה</button>
+      <button type="button" class="btn btn-secondary" id="meetupCancelBtn">ביטול</button>
+    </div>
+  </div>
 </div>
 
 <div class="onboarding-overlay" id="onboardingOverlay" hidden>
@@ -684,8 +744,19 @@
     mapSection:$("mapSection"),
     splashScreen:$("splashScreen"), splashDogsRow:$("splashDogsRow"),
     brandMarkBtn:$("brandMarkBtn"), editProfileBtnIcon:$("editProfileBtnIcon"),
-    brandTitleBtn:$("brandTitleBtn")
+    brandTitleBtn:$("brandTitleBtn"),
+    feedbackMailBtn:$("feedbackMailBtn"),
+    meetupOverlay:$("meetupOverlay"), meetupTarget:$("meetupTarget"),
+    meetupAddressInput:$("meetupAddressInput"), meetupAddressBtn:$("meetupAddressBtn"), meetupAddressError:$("meetupAddressError"),
+    meetupMiniMap:$("meetupMiniMap"), meetupChosen:$("meetupChosen"), meetupChosenLabel:$("meetupChosenLabel"),
+    meetupSendBtn:$("meetupSendBtn"), meetupCancelBtn:$("meetupCancelBtn"), meetupCloseBtn:$("meetupCloseBtn")
   };
+
+  // ===== קוביית פידבק (בטא) - כפתור "יצירת קשר" פותח טיוטת מייל חדשה. בונים את ה-href
+  // דרך encodeURIComponent במקום לכתוב ידנית URL מקודד, כדי לא לטעות בקידוד עברית =====
+  if(els.feedbackMailBtn){
+    els.feedbackMailBtn.href = "mailto:amirkarlin@gmail.com?subject=" + encodeURIComponent("היי, יש לי הצעה לשיפור/ פידבק");
+  }
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
     '<path d="M8.5 8.8c1 0 1.9-1.1 1.9-2.4S9.5 4 8.5 4 6.6 5.1 6.6 6.4s.9 2.4 1.9 2.4Zm7 0c1 0 1.9-1.1 1.9-2.4S16.5 4 15.5 4s-1.9 1.1-1.9 2.4.9 2.4 1.9 2.4ZM4.8 13.6c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2Zm14.4 0c.9 0 1.7-1 1.7-2.2s-.8-2.2-1.7-2.2-1.7 1-1.7 2.2.8 2.2 1.7 2.2ZM12 12.8c-2.4 0-5.6 2.6-5.6 5.6 0 1.4 1 2.3 2.3 2.3.9 0 1.6-.5 2.3-.9.4-.3.8-.5 1-.5s.6.2 1 .5c.7.4 1.4.9 2.3.9 1.3 0 2.3-.9 2.3-2.3 0-3-3.2-5.6-5.6-5.6Z"/></svg>';
@@ -1226,10 +1297,12 @@
     els.notifEmptyNote.hidden = true; els.notifList.hidden = false;
     els.notifList.innerHTML = entries.map(function(n, idx){
       var canReply = n.kind === "invite" && !n.replied && typeof n.fromId === "string" && typeof n.toId === "string";
+      var hasMeetLoc = typeof n.meetLat === "number" && typeof n.meetLng === "number";
       return '<div class="notif-entry" data-notif-idx="'+idx+'">' +
         (n.read ? '' : '<span class="notif-unread-dot"></span>') +
         '<div style="flex:1;min-width:0">' +
           '<div class="notif-text">'+escapeHtml(n.message)+'</div>' +
+          (hasMeetLoc ? '<a class="link-btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+n.meetLat+','+n.meetLng+'">📍 פתיחת ניווט לנקודה</a>' : '') +
           '<div class="notif-when">'+escapeHtml(fmtWalkWhen(n.at))+'</div>' +
           (canReply ? '<button type="button" class="invite-btn notif-reply-btn">יאללה! 🐾</button>' : '') +
           (n.kind === "invite" && n.replied ? '<div class="notif-replied">✅ עניתם יאללה</div>' : '') +
@@ -1272,12 +1345,102 @@
   var myFavoriteProfiles = {}; // שם/תמונה/צבע לכלבים שסימנתי, גם כשהם לא בטיול כרגע
   function isStarred(id){ return myFavoritesOut.indexOf(id) !== -1; }
   function isMutualWith(id){ return isStarred(id) && myFavoritesIn.indexOf(id) !== -1; }
+  // שם תצוגה בטוח לכלב/ה אחר/ת, גם אם לא בטיול כרגע (נופל חזרה לפרופיל השמור) - משמש
+  // בכל מקום שפותח את מודאל "הצעת נקודת מפגש" כדי להציג "מציעים נקודת מפגש ל<שם>"
+  function friendDisplayName(id){
+    return displayDogName(latestDocs[id] && latestDocs[id].dogName) ||
+      displayDogName(myFavoriteProfiles[id] && myFavoriteProfiles[id].dogName) || "חבר/ה";
+  }
   var INVITE_ERROR_MESSAGES = {
     not_mutual: "אפשר להזמין רק כלב/ה שסימנתם בכוכב וגם סימנו אתכם בחזרה.",
     no_subscription: "למטייל/ת הזו עדיין אין התראות מופעלות במכשיר שלה/ו.",
     cooldown: "כבר שלחתם הזמנה לאחרונה - אפשר לנסות שוב בעוד כמה דקות.",
     send_failed: "לא הצלחנו לשלוח את ההזמנה. נסו שוב."
   };
+
+  // ===== מודאל "הצעת נקודת מפגש" - שתי דרכים עצמאיות לבחור מיקום (לא תלויות זו בזו):
+  // הקלדת כתובת (עובר גיאוקוד דרך /api/geocode, בדיוק כמו הגדרת "בית"), או לחיצה על
+  // מיני-מפה ייעודית בתוך המודאל עצמו (לא נוגעים במפה הראשית). שתיהן מזינות את אותו
+  // מצב משותף (meetupChosenLat/Lng/Label) ואת אותה שליחה בסוף (invite:send עם מיקום) =====
+  var meetupTargetId = null;
+  var meetupChosenLat = null, meetupChosenLng = null, meetupChosenLabel = "";
+  var meetupMiniMapInstance = null, meetupMiniMarker = null;
+
+  function ensureMeetupMiniMap(){
+    if(meetupMiniMapInstance || typeof L === "undefined" || !els.meetupMiniMap) return;
+    var center = myPos ? [myPos.lat, myPos.lng] : [32.0853, 34.7818]; // ברירת מחדל (ת"א) רק אם אין מיקום בכלל
+    meetupMiniMapInstance = L.map(els.meetupMiniMap, { zoomControl:true, attributionControl:false }).setView(center, 15);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom:19 }).addTo(meetupMiniMapInstance);
+    meetupMiniMapInstance.on("click", function(e){
+      setMeetupPoint(e.latlng.lat, e.latlng.lng, "נקודה שסומנה במפה");
+    });
+    // ה-overlay היה hidden (display:none) ברגע שה-constructor רץ, אז Leaflet לא יכול היה
+    // לחשב גודל נכון - invalidateSize אחרי שהעלילה כבר נראית בפועל מתקן את זה
+    setTimeout(function(){ if(meetupMiniMapInstance) meetupMiniMapInstance.invalidateSize(); }, 60);
+  }
+  function setMeetupPoint(lat, lng, label){
+    meetupChosenLat = lat; meetupChosenLng = lng; meetupChosenLabel = label || "";
+    if(meetupMiniMarker){ meetupMiniMarker.setLatLng([lat, lng]); }
+    else if(meetupMiniMapInstance){ meetupMiniMarker = L.marker([lat, lng]).addTo(meetupMiniMapInstance); }
+    if(meetupMiniMapInstance) meetupMiniMapInstance.setView([lat, lng], Math.max(meetupMiniMapInstance.getZoom(), 15));
+    els.meetupChosenLabel.textContent = meetupChosenLabel || (lat.toFixed(5) + ", " + lng.toFixed(5));
+    els.meetupChosen.hidden = false;
+    els.meetupSendBtn.disabled = false;
+  }
+  function openMeetupModal(targetId, targetName){
+    if(!els.meetupOverlay) return;
+    meetupTargetId = targetId;
+    meetupChosenLat = null; meetupChosenLng = null; meetupChosenLabel = "";
+    if(meetupMiniMarker && meetupMiniMapInstance){ meetupMiniMapInstance.removeLayer(meetupMiniMarker); meetupMiniMarker = null; }
+    els.meetupTarget.textContent = "מציעים נקודת מפגש ל" + targetName;
+    els.meetupAddressInput.value = "";
+    els.meetupAddressError.hidden = true;
+    els.meetupChosen.hidden = true;
+    els.meetupSendBtn.disabled = true;
+    els.meetupOverlay.hidden = false;
+    setTimeout(ensureMeetupMiniMap, 50);
+  }
+  function closeMeetupModal(){
+    if(els.meetupOverlay) els.meetupOverlay.hidden = true;
+  }
+  if(els.meetupCloseBtn) els.meetupCloseBtn.addEventListener("click", closeMeetupModal);
+  if(els.meetupCancelBtn) els.meetupCancelBtn.addEventListener("click", closeMeetupModal);
+  if(els.meetupAddressBtn){
+    els.meetupAddressBtn.addEventListener("click", function(){
+      var address = els.meetupAddressInput.value.trim();
+      els.meetupAddressError.hidden = true;
+      if(!address){ els.meetupAddressError.textContent = "יש להזין כתובת."; els.meetupAddressError.hidden = false; return; }
+      var prevText = els.meetupAddressBtn.textContent;
+      els.meetupAddressBtn.disabled = true; els.meetupAddressBtn.textContent = "מאתר/ת…";
+      fetch("/api/geocode", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ address: address })
+      }).then(function(r){ return r.json(); }).then(function(data){
+        els.meetupAddressBtn.disabled = false; els.meetupAddressBtn.textContent = prevText;
+        if(data && data.ok){
+          ensureMeetupMiniMap();
+          setMeetupPoint(data.lat, data.lng, data.displayName || address);
+        } else {
+          els.meetupAddressError.textContent = "לא הצלחנו לאתר את הכתובת הזו. נסו לנסח אותה מעט אחרת (למשל: רחוב, מספר ועיר).";
+          els.meetupAddressError.hidden = false;
+        }
+      }).catch(function(){
+        els.meetupAddressBtn.disabled = false; els.meetupAddressBtn.textContent = prevText;
+        els.meetupAddressError.textContent = "שגיאת תקשורת. נסו שוב.";
+        els.meetupAddressError.hidden = false;
+      });
+    });
+  }
+  if(els.meetupSendBtn){
+    els.meetupSendBtn.addEventListener("click", function(){
+      if(!socket || !meetupTargetId || meetupChosenLat === null) return;
+      socket.emit("invite:send", {
+        id: myId, targetId: meetupTargetId,
+        meetLat: meetupChosenLat, meetLng: meetupChosenLng, meetLabel: meetupChosenLabel
+      });
+      closeMeetupModal();
+    });
+  }
 
   // ===== זוכרים במכשיר שגישת המיקום כבר אושרה בעבר, כדי שלא נצטרך להסתמך רק על
   // navigator.permissions.query - שלא נתמך באמינות בספארי/אייפון, ולכן שם המשתמש
@@ -1500,7 +1663,7 @@
       renderNotifications();
     });
     socket.on("invite:result", function(res){
-      if(res && res.ok){ showToast("ההזמנה נשלחה! 🐾"); }
+      if(res && res.ok){ showToast(res.hasLocation ? "הצעת המפגש נשלחה! 📍" : "ההזמנה נשלחה! 🐾"); }
       else { showToast((res && INVITE_ERROR_MESSAGES[res.reason]) || "לא הצלחנו לשלוח את ההזמנה."); }
     });
     // אם מי שקיבל/ה את ההזמנה הגיב/ה "יאללה" מתוך ההתראה עצמה, ואנחנו כרגע מחוברים/ות -
@@ -1705,10 +1868,18 @@
     // האזנה אחת (event delegation) לכפתור "בוא/י לגינה" שבתוך חלונית המידע (popup) של סמן על
     // המפה - כך שהכפתור עובד גם כשתוכן החלונית מוחלף דינמית בכל עדכון מיקום (setPopupContent)
     leafletMap.getContainer().addEventListener("click", function(e){
-      var btn = e.target.closest ? e.target.closest(".popup-invite-btn") : null;
-      if(!btn || !socket) return;
-      socket.emit("invite:send", { id: myId, targetId: btn.getAttribute("data-popup-invite") });
-      leafletMap.closePopup();
+      var inviteBtn = e.target.closest ? e.target.closest(".popup-invite-btn") : null;
+      if(inviteBtn && socket){
+        socket.emit("invite:send", { id: myId, targetId: inviteBtn.getAttribute("data-popup-invite") });
+        leafletMap.closePopup();
+        return;
+      }
+      var meetupBtn = e.target.closest ? e.target.closest(".popup-meetup-btn") : null;
+      if(meetupBtn){
+        var tid = meetupBtn.getAttribute("data-popup-meetup");
+        leafletMap.closePopup();
+        openMeetupModal(tid, friendDisplayName(tid));
+      }
     });
   }
 
@@ -1744,7 +1915,10 @@
       var popupHtml = "<b>"+escapeHtml(w.data.dogName)+"</b>"+
         (w.data.dogBreed ? "<br>"+escapeHtml(w.data.dogBreed) : "") +
         "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt) +
-        (isMutualWith(w.id) ? "<br><button type='button' class='invite-btn popup-invite-btn' data-popup-invite='"+escapeHtml(w.id)+"'>🐾 בוא/י לגינה</button>" : "");
+        (isMutualWith(w.id) ?
+          "<br><button type='button' class='invite-btn popup-invite-btn' data-popup-invite='"+escapeHtml(w.id)+"'>🐾 בוא/י לגינה</button>" +
+          "<br><button type='button' class='invite-btn meetup-btn popup-meetup-btn' data-popup-meetup='"+escapeHtml(w.id)+"'>📍 הצעת מפגש</button>"
+          : "");
       if(mapMarkers[w.id]){
         mapMarkers[w.id].setLatLng([w.data.lat, w.data.lng]);
         mapMarkers[w.id].setPopupContent(popupHtml);
@@ -1811,7 +1985,8 @@
     starBtn.textContent = starred ? "★" : "☆";
 
     var actions = card.querySelector(".wc-actions");
-    var inviteBtn = actions.querySelector(".invite-btn");
+    var inviteBtn = actions.querySelector(".invite-btn:not(.meetup-btn)");
+    var meetupBtn = actions.querySelector(".meetup-btn");
     if(isMutualWith(w.id)){
       if(!inviteBtn){
         inviteBtn = document.createElement("button");
@@ -1825,8 +2000,19 @@
         });
         actions.appendChild(inviteBtn);
       }
-    } else if(inviteBtn){
-      inviteBtn.remove();
+      if(!meetupBtn){
+        meetupBtn = document.createElement("button");
+        meetupBtn.type = "button";
+        meetupBtn.className = "invite-btn meetup-btn";
+        meetupBtn.textContent = "📍 הצעת מפגש";
+        meetupBtn.addEventListener("click", function(){
+          openMeetupModal(w.id, friendDisplayName(w.id));
+        });
+        actions.appendChild(meetupBtn);
+      }
+    } else {
+      if(inviteBtn) inviteBtn.remove();
+      if(meetupBtn) meetupBtn.remove();
     }
   }
 
@@ -1927,7 +2113,8 @@
       : '<span class="chip">לא בטיול כרגע</span>';
 
     var actions = els.friendDetail.querySelector(".wc-actions");
-    var inviteBtn = actions.querySelector(".invite-btn");
+    var inviteBtn = actions.querySelector(".invite-btn:not(.meetup-btn)");
+    var meetupBtn = actions.querySelector(".meetup-btn");
     var hint = els.friendDetail.querySelector(".friend-detail-hint");
     if(isMutualWith(id)){
       if(!inviteBtn){
@@ -1941,9 +2128,20 @@
         });
         actions.appendChild(inviteBtn);
       }
+      if(!meetupBtn){
+        meetupBtn = document.createElement("button");
+        meetupBtn.type = "button";
+        meetupBtn.className = "invite-btn meetup-btn";
+        meetupBtn.textContent = "📍 הצעת מפגש";
+        meetupBtn.addEventListener("click", function(){
+          openMeetupModal(id, friendDisplayName(id));
+        });
+        actions.appendChild(meetupBtn);
+      }
       if(hint) hint.hidden = true;
     } else {
       if(inviteBtn) inviteBtn.remove();
+      if(meetupBtn) meetupBtn.remove();
       if(hint){ hint.hidden = false; hint.textContent = "אפשר לשלוח הזמנה רק כשגם הם מסמנים אתכם בכוכב בחזרה."; }
     }
   }
