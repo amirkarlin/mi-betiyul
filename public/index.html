@@ -110,11 +110,14 @@
     transition:background .15s ease, color .15s ease; position:relative; }
   .icon-btn:hover{color:var(--text);}
   .icon-btn svg{width:18px;height:18px;fill:currentColor;}
-  /* ===== תג "עריכה" קטן שמופיע בפינת תמונת הכלב בכפתור העריכה בכותרת, כדי שיהיה
-  ברור שגם כשהכפתור מציג תמונה (ולא סמל עיפרון גנרי) הוא עדיין לחיץ לעריכת הפרופיל ===== */
-  .icon-btn.has-photo::after{ content:"✏️"; position:absolute; left:-3px; bottom:-3px;
-    width:18px;height:18px;border-radius:50%; background:var(--primary); box-shadow:0 0 0 2px var(--surface);
-    font-size:9px; line-height:18px; text-align:center; }
+  /* ===== תג "עריכה" שמופיע בפינת תמונת הכלב בכפתור העריכה בכותרת, כדי שיהיה ברור
+  שגם כשהכפתור מציג תמונה (ולא סמל עיפרון גנרי) הוא עדיין לחיץ לעריכת הפרופיל - עיגול
+  לבן עם מסגרת בצבע הניגודי וסמל עיפרון ברור, ממוקם לגמרי מחוץ לגבולות התמונה כדי
+  שלא ייחתך (הקודם נחתך כי ההורה הגדיר overflow:hidden) ===== */
+  .icon-btn.has-photo::after{ content:"✏️"; position:absolute; right:-5px; bottom:-5px;
+    width:21px;height:21px;border-radius:50%; background:#fff; color:#000;
+    box-shadow:0 1px 4px rgba(0,0,0,.4), 0 0 0 2px var(--primary);
+    font-size:11px; line-height:21px; text-align:center; }
 
   .gate{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:34px 24px;
     text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
@@ -303,8 +306,11 @@
   .friend-chip.selected .dog-badge.list{ box-shadow:0 0 0 3px var(--primary); }
   .friend-chip-name{ font-size:.74rem; font-weight:700; color:var(--text); white-space:nowrap;
     overflow:hidden; text-overflow:ellipsis; max-width:100%; }
-  .friend-detail{ display:flex; flex-direction:column; gap:10px; background:var(--surface);
-    border-radius:var(--radius-md); box-shadow:var(--shadow); padding:12px 14px; margin-top:-2px; }
+  /* ===== מיכל כרטיסיות הפרטים של מועדפים פתוחים - אפשר שכמה יהיו פתוחות בו-זמנית,
+  נערמות זו מתחת לזו בסדר הלחיצה; לכל כרטיסייה יש X משלה לסגירה (.friend-detail-card) ===== */
+  .friend-detail{ display:flex; flex-direction:column; gap:10px; margin-top:-2px; }
+  .friend-detail-card{ position:relative; display:flex; flex-direction:column; gap:10px; background:var(--surface);
+    border-radius:var(--radius-md); box-shadow:var(--shadow); padding:30px 14px 14px; }
   .friend-detail-hint{ font-size:.78rem; color:var(--text-muted); line-height:1.5; }
 
   .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
@@ -353,9 +359,11 @@
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
-  /* ===== הערת שידור המיקום - עברה מתחתית העמוד לכאן, מתחת לכפתור המרכזי "יצאתי לטיול" ===== */
+  /* ===== הערת שידור המיקום - עברה מתחתית העמוד לכאן, מתחת לכפתור המרכזי "יצאתי לטיול" -
+  רקע לבן/תבנית ייעודי (כמו שאר ההערות הדומות באפליקציה) כדי שתהיה קריאה מול רקע התבנית ===== */
   .cta-location-note{ margin:10px auto 0; font-size:.72rem; color:var(--text-muted); text-align:center;
-    line-height:1.6; max-width:230px; }
+    line-height:1.6; max-width:230px; background:var(--surface); border-radius:var(--radius-md);
+    box-shadow:var(--shadow); padding:10px 14px; }
 
   /* ===== קוביית פידבק קבועה בתחתית העמוד (גרסת בטא) ===== */
   .feedback-footer{ margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:10px;
@@ -426,7 +434,7 @@
   .edit-btn-icon{ width:100%;height:100%; display:flex; align-items:center; justify-content:center; }
   .edit-btn-icon svg{ width:18px;height:18px; fill:currentColor; }
   .edit-btn-icon img{ width:100%;height:100%; border-radius:50%; object-fit:cover; display:block; }
-  .icon-btn.has-photo{ padding:0; overflow:hidden; border-radius:50%; }
+  .icon-btn.has-photo{ padding:0; overflow:visible; border-radius:50%; }
 
   /* ===== תפריט נגישות ===== */
   .a11y-toggle-btn{ position:fixed; bottom:16px; right:16px; z-index:9500; width:52px;height:52px;
@@ -2039,10 +2047,12 @@
   }
 
   // ===== "החברים שלי" - הכלבים שסימנתי בכוכב, מוצגים כשורה אופקית של תמונה+שם בלבד.
-  // לחיצה על חבר/ה פותחת (ולחיצה נוספת סוגרת) כרטיסיית פרטים מתחת לשורה עם הסטטוס,
-  // כפתור "בוא/י לגינה" (כשהדדי) והסרה מהמועדפים - כך שהרשימה עצמה נשארת קומפקטית.
-  // גם כאן מעדכנים רק את מה שהשתנה בפועל, כדי שתמונת הכלב לא תהבהב בכל עדכון =====
-  var selectedFriendId = null;
+  // לחיצה על חבר/ה פותחת כרטיסיית פרטים מתחת לשורה עם הסטטוס, כפתור "בוא/י לגינה"
+  // (כשהדדי) והסרה מהמועדפים - כך שהרשימה עצמה נשארת קומפקטית. אפשר שכמה כרטיסיות
+  // יהיו פתוחות בו-זמנית (נערמות זו מתחת לזו, לפי סדר הלחיצה) - כל אחת נסגרת בנפרד
+  // עם כפתור X משלה (או בלחיצה חוזרת על הצ'יפ המתאים). גם כאן מעדכנים רק את מה
+  // שהשתנה בפועל, כדי שתמונת הכלב לא תהבהב בכל עדכון =====
+  var openFriendIds = [];
 
   function upsertFriendChip(id){
     var live = latestDocs[id];
@@ -2060,7 +2070,8 @@
       chip.setAttribute("data-wid", id);
       chip.innerHTML = '<div class="dog-badge list"></div><div class="friend-chip-name"></div>';
       chip.addEventListener("click", function(){
-        selectedFriendId = (selectedFriendId === id) ? null : id;
+        var idx = openFriendIds.indexOf(id);
+        if(idx === -1){ openFriendIds.push(id); } else { openFriendIds.splice(idx, 1); }
         renderFriends();
       });
       els.friendsList.appendChild(chip);
@@ -2070,18 +2081,17 @@
 
     applyBadge(chip.querySelector(".dog-badge"), icon, color);
     chip.querySelector(".friend-chip-name").textContent = name;
-    chip.classList.toggle("selected", selectedFriendId === id);
+    chip.classList.toggle("selected", openFriendIds.indexOf(id) !== -1);
   }
 
-  function renderFriendDetail(){
-    if(!els.friendDetail) return;
-    var id = selectedFriendId;
-    if(!id || myFavoritesOut.indexOf(id) === -1){
-      els.friendDetail.hidden = true;
-      els.friendDetail.removeAttribute("data-wid");
-      els.friendDetail.innerHTML = "";
-      return;
-    }
+  function closeFriendDetail(id){
+    var idx = openFriendIds.indexOf(id);
+    if(idx !== -1) openFriendIds.splice(idx, 1);
+    renderFriends();
+  }
+
+  // בונה/מעדכן כרטיסיית פרטים בודדת (לכלב מועדף אחד) בתוך מיכל #friendDetail
+  function renderOneFriendDetail(id){
     var live = latestDocs[id];
     var saved = myFavoriteProfiles[id];
     var data = live || saved;
@@ -2090,10 +2100,13 @@
     var icon = data && data.dogIcon;
     var color = data && data.dogColor;
 
-    els.friendDetail.hidden = false;
-    if(els.friendDetail.getAttribute("data-wid") !== id){
-      els.friendDetail.setAttribute("data-wid", id);
-      els.friendDetail.innerHTML =
+    var card = els.friendDetail.querySelector('.friend-detail-card[data-wid="'+id+'"]');
+    if(!card){
+      card = document.createElement("div");
+      card.className = "friend-detail-card";
+      card.setAttribute("data-wid", id);
+      card.innerHTML =
+        '<button type="button" class="close-x-btn" aria-label="סגירה">✕</button>' +
         '<div class="wc-row">' +
           '<div class="dog-badge list"></div>' +
           '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
@@ -2103,27 +2116,30 @@
           '<button type="button" class="star-btn active" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
         '</div>' +
         '<div class="friend-detail-hint" hidden></div>';
-      els.friendDetail.querySelector(".star-btn").addEventListener("click", function(){
+      card.querySelector(".close-x-btn").addEventListener("click", function(){ closeFriendDetail(id); });
+      card.querySelector(".star-btn").addEventListener("click", function(){
         if(!socket) return;
         socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
-        selectedFriendId = null;
-        renderFriends();
+        closeFriendDetail(id);
       });
+      els.friendDetail.appendChild(card);
+    } else {
+      els.friendDetail.appendChild(card); // ממקם בסוף (לפי סדר openFriendIds) בלי להרוס את הצומת
     }
 
-    applyBadge(els.friendDetail.querySelector(".dog-badge"), icon, color);
-    els.friendDetail.querySelector(".name").textContent = name;
-    var dogEl = els.friendDetail.querySelector(".dog");
+    applyBadge(card.querySelector(".dog-badge"), icon, color);
+    card.querySelector(".name").textContent = name;
+    var dogEl = card.querySelector(".dog");
     if(breed){ dogEl.hidden = false; dogEl.textContent = breed; }
     else { dogEl.hidden = true; dogEl.textContent = ""; }
-    els.friendDetail.querySelector(".meta").innerHTML = live
+    card.querySelector(".meta").innerHTML = live
       ? '<span class="chip dist">🟢 בטיול עכשיו</span>'
       : '<span class="chip">לא בטיול כרגע</span>';
 
-    var actions = els.friendDetail.querySelector(".wc-actions");
+    var actions = card.querySelector(".wc-actions");
     var inviteBtn = actions.querySelector(".invite-btn:not(.meetup-btn)");
     var meetupBtn = actions.querySelector(".meetup-btn");
-    var hint = els.friendDetail.querySelector(".friend-detail-hint");
+    var hint = card.querySelector(".friend-detail-hint");
     if(isMutualWith(id)){
       if(!inviteBtn){
         inviteBtn = document.createElement("button");
@@ -2154,13 +2170,31 @@
     }
   }
 
+  function renderFriendDetails(){
+    if(!els.friendDetail) return;
+    if(!openFriendIds.length){
+      els.friendDetail.hidden = true;
+      els.friendDetail.innerHTML = "";
+      return;
+    }
+    els.friendDetail.hidden = false;
+    var open = {};
+    openFriendIds.forEach(function(id){ open[id] = true; });
+    Array.prototype.forEach.call(els.friendDetail.querySelectorAll(".friend-detail-card"), function(card){
+      if(!open[card.getAttribute("data-wid")]) card.remove();
+    });
+    openFriendIds.forEach(renderOneFriendDetail);
+  }
+
   function renderFriends(){
     if(!els.friendsList) return;
     var ids = myFavoritesOut;
     els.friendsCount.textContent = ids.length ? (ids.length + (ids.length===1 ? " מועדף/ת" : " מועדפים")) : "";
+    // מסנן מרשימת הפתוחים כל מי שכבר לא במועדפים (למשל הוסר מכוכב במקום אחר)
+    openFriendIds = openFriendIds.filter(function(id){ return ids.indexOf(id) !== -1; });
     if(!ids.length){
       els.friendsEmptyNote.hidden=false; els.friendsList.hidden=true; els.friendsList.innerHTML="";
-      selectedFriendId = null; renderFriendDetail();
+      renderFriendDetails();
       return;
     }
     els.friendsEmptyNote.hidden=true; els.friendsList.hidden=false;
@@ -2169,7 +2203,7 @@
     Array.prototype.forEach.call(els.friendsList.querySelectorAll(".friend-chip"), function(chip){
       if(!seen[chip.getAttribute("data-wid")]) chip.remove();
     });
-    renderFriendDetail();
+    renderFriendDetails();
   }
 
   if("serviceWorker" in navigator){
