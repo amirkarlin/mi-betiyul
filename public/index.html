@@ -107,9 +107,14 @@
   .brand .tagline{ font-size:.78rem; color:var(--text-muted); margin-top:3px; }
   .icon-btn{ width:38px;height:38px; border-radius:11px; border:1px solid var(--ring-strong); background:var(--surface);
     display:flex;align-items:center;justify-content:center; cursor:pointer; color:var(--text-muted);
-    transition:background .15s ease, color .15s ease; }
+    transition:background .15s ease, color .15s ease; position:relative; }
   .icon-btn:hover{color:var(--text);}
   .icon-btn svg{width:18px;height:18px;fill:currentColor;}
+  /* ===== תג "עריכה" קטן שמופיע בפינת תמונת הכלב בכפתור העריכה בכותרת, כדי שיהיה
+  ברור שגם כשהכפתור מציג תמונה (ולא סמל עיפרון גנרי) הוא עדיין לחיץ לעריכת הפרופיל ===== */
+  .icon-btn.has-photo::after{ content:"✏️"; position:absolute; left:-3px; bottom:-3px;
+    width:18px;height:18px;border-radius:50%; background:var(--primary); box-shadow:0 0 0 2px var(--surface);
+    font-size:9px; line-height:18px; text-align:center; }
 
   .gate{ background:var(--surface); border-radius:var(--radius-lg); box-shadow:var(--shadow); padding:34px 24px;
     text-align:center; display:flex; flex-direction:column; align-items:center; gap:14px; margin-bottom:16px; }
@@ -348,6 +353,10 @@
   footer.note{ margin-top:26px; font-size:.72rem; color:var(--text-muted); text-align:center; line-height:1.7;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:14px 16px; }
 
+  /* ===== הערת שידור המיקום - עברה מתחתית העמוד לכאן, מתחת לכפתור המרכזי "יצאתי לטיול" ===== */
+  .cta-location-note{ margin:10px auto 0; font-size:.72rem; color:var(--text-muted); text-align:center;
+    line-height:1.6; max-width:230px; }
+
   /* ===== קוביית פידבק קבועה בתחתית העמוד (גרסת בטא) ===== */
   .feedback-footer{ margin-top:14px; display:flex; flex-direction:column; align-items:center; gap:10px;
     text-align:center; background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow);
@@ -505,6 +514,8 @@
         <small id="ctaSub">הפוך/הפכי לגלוי/ה</small>
       </button>
 
+      <p class="cta-location-note">המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.</p>
+
       <div class="walk-timer" id="walkTimer" hidden></div>
 
       <form class="profile-form" id="profileForm" hidden>
@@ -630,10 +641,6 @@
       <div class="nearby-list" id="notifList"></div>
     </div>
 
-    <footer class="note">
-      המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.
-    </footer>
-
     <div class="feedback-footer">
       <span class="feedback-footer-badge">🧪 גרסת בטא</span>
       <p class="feedback-footer-text">האפליקציה עדיין בגרסת בטא - אם יש לכם הצעות לשיפור או פידבק, נשמח לשמוע מכם!</p>
@@ -676,6 +683,7 @@
     <ul class="onboarding-list">
       <li><span class="paw-ico">🐾</span><span>רואים בזמן אמת אילו כלבים נמצאים כרגע בטיול בסביבה</span></li>
       <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" ושולחים הזמנה "בוא/י לגינה" בלחיצת כפתור</span></li>
+      <li><span class="paw-ico">🐾</span><span>לחברים הדדיים אפשר גם להציע נקודת מפגש מדויקת - בהקלדת כתובת או בלחיצה על המפה</span></li>
       <li><span class="paw-ico">🐾</span><span>יש לכם קוד אישי (ב"חשבון שלי") שמאפשר לשחזר את הפרופיל והחברים שלכם גם ממכשיר חדש, בלי להירשם מחדש</span></li>
       <li><span class="paw-ico">🐾</span><span>אפשר להגדיר כתובת "בית" כדי שהטיול יסתיים לבד כשחוזרים</span></li>
     </ul>
@@ -1917,7 +1925,7 @@
         "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt) +
         (isMutualWith(w.id) ?
           "<br><button type='button' class='invite-btn popup-invite-btn' data-popup-invite='"+escapeHtml(w.id)+"'>🐾 בוא/י לגינה</button>" +
-          "<br><button type='button' class='invite-btn meetup-btn popup-meetup-btn' data-popup-meetup='"+escapeHtml(w.id)+"'>📍 הצעת מפגש</button>"
+          "<br><button type='button' class='invite-btn meetup-btn popup-meetup-btn' data-popup-meetup='"+escapeHtml(w.id)+"'>📍 הצעה לנק׳ מפגש</button>"
           : "");
       if(mapMarkers[w.id]){
         mapMarkers[w.id].setLatLng([w.data.lat, w.data.lng]);
@@ -2004,7 +2012,7 @@
         meetupBtn = document.createElement("button");
         meetupBtn.type = "button";
         meetupBtn.className = "invite-btn meetup-btn";
-        meetupBtn.textContent = "📍 הצעת מפגש";
+        meetupBtn.textContent = "📍 הצעה לנק׳ מפגש";
         meetupBtn.addEventListener("click", function(){
           openMeetupModal(w.id, friendDisplayName(w.id));
         });
@@ -2132,7 +2140,7 @@
         meetupBtn = document.createElement("button");
         meetupBtn.type = "button";
         meetupBtn.className = "invite-btn meetup-btn";
-        meetupBtn.textContent = "📍 הצעת מפגש";
+        meetupBtn.textContent = "📍 הצעה לנק׳ מפגש";
         meetupBtn.addEventListener("click", function(){
           openMeetupModal(id, friendDisplayName(id));
         });
