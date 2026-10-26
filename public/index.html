@@ -282,15 +282,19 @@
 
   /* סיכת "הצעת נקודת מפגש" חיה על המפה הראשית - ראו renderMeetupMarkers(). ה-transform
      ממקם את קצה האימוג'י (לא את הפינה השמאלית-עליונה של ה-div) בדיוק על נקודת ה-lat/lng,
-     ללא תלות ברוחב התווית (שם הכלב) מעליו */
+     ללא תלות ברוחב התווית (שם הכלב) מעליו. התווית עצמה תמיד גלויה (לא בתוך פופאפ שצריך
+     לפתוח) וכוללת כפתור פעולה (יאללה/ביטול) ישירות בתוכה */
   .meetup-pin{ display:flex; flex-direction:column; align-items:center; transform:translate(-50%,-100%);
-    white-space:nowrap; pointer-events:none; }
-  .meetup-pin-label{ background:var(--surface); color:var(--text); font-size:.68rem; font-weight:700;
-    padding:3px 9px; border-radius:999px; box-shadow:0 2px 6px rgba(0,0,0,.25); margin-bottom:2px; max-width:170px;
-    overflow:hidden; text-overflow:ellipsis; }
+    white-space:nowrap; }
+  .meetup-pin-label{ display:flex; align-items:center; gap:6px; background:var(--surface); color:var(--text);
+    font-size:.74rem; font-weight:700; padding:4px 6px 4px 10px; border-radius:999px;
+    box-shadow:0 2px 6px rgba(0,0,0,.25); margin-bottom:2px; max-width:220px; }
+  .meetup-pin-text{ overflow:hidden; text-overflow:ellipsis; }
+  .meetup-pin-x, .meetup-pin-yalla{ appearance:none; border:none; cursor:pointer; flex:0 0 auto;
+    font-weight:800; line-height:1; border-radius:999px; }
+  .meetup-pin-x{ width:24px; height:24px; background:var(--danger-bg); color:var(--danger-text); font-size:.95rem; }
+  .meetup-pin-yalla{ padding:5px 10px; background:var(--primary); color:var(--primary-ink); font-size:.72rem; white-space:nowrap; }
   .meetup-pin-emoji{ font-size:1.9rem; line-height:1; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
-  .meetup-pin-popup .invite-btn{ margin-top:6px; }
-  .invite-btn.danger-btn{ background:var(--danger-bg); color:var(--danger-text); }
 
   .nearby-list{ display:flex; flex-direction:column; gap:10px; }
   .walker-card{ display:flex; flex-direction:column; gap:10px; background:var(--surface); border-radius:var(--radius-md);
@@ -717,8 +721,7 @@
     <h2>ברוכים הבאים ל"מי בטיול?" 🐾</h2>
     <ul class="onboarding-list">
       <li><span class="paw-ico">🐾</span><span>רואים בזמן אמת אילו כלבים נמצאים כרגע בטיול בסביבה</span></li>
-      <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" (ע"י לחיצה על כוכב ⭐, ורק אם גם הם מסמנים אתכם בחזרה) ושולחים הזמנה "בוא/י לגינה" או מציעים נקודת מפגש על המפה</span></li>
-      <li><span class="paw-ico">🐾</span><span>לחברים הדדיים אפשר להציע נקודת מפגש מדויקת - בלחיצה על המפה או בהקלדת כתובת - והיא תוצג כסיכה 📍 על המפה אצל שניכם, עד שעונים "יאללה" או מבטלים אותה</span></li>
+      <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" (ע"י לחיצה על כוכב ⭐, ורק אם גם הם מסמנים אתכם בחזרה), ואז אפשר לשלוח הזמנה "בוא/י לגינה" או להציע נקודת מפגש מדויקת (בלחיצה על המפה או בהקלדת כתובת) - שתוצג כסיכה 📍 על המפה אצל שניכם, עד שעונים "יאללה" או מבטלים אותה</span></li>
       <li><span class="paw-ico">🐾</span><span>יש לכם קוד אישי (ב"חשבון שלי") שמאפשר לשחזר את הפרופיל והחברים שלכם גם ממכשיר חדש, בלי להירשם מחדש</span></li>
       <li><span class="paw-ico">🐾</span><span>אפשר להגדיר כתובת "בית" כדי שהטיול יסתיים לבד כשחוזרים</span></li>
     </ul>
@@ -1981,25 +1984,11 @@
         var tid = meetupBtn.getAttribute("data-popup-meetup");
         leafletMap.closePopup();
         openMeetupModal(tid, friendDisplayName(tid));
-        return;
       }
-      // כפתורים בתוך הפופאפ של סיכת "הצעת מפגש" עצמה (ראו renderMeetupMarkers) - אותו
-      // דפוס event delegation, כי גם הפופאפ הזה נבנה/נהרס דינמית
-      var yallaBtn = e.target.closest ? e.target.closest(".meetup-pin-yalla-btn") : null;
-      if(yallaBtn && socket){
-        var yFromId = yallaBtn.getAttribute("data-meetup-from");
-        yallaBtn.disabled = true; yallaBtn.textContent = "שולח/ת…";
-        sendInviteReply(yFromId, myId, function(ok){
-          if(ok){ showToast("שלחתם יאללה! 🐾"); leafletMap.closePopup(); }
-          else { yallaBtn.disabled = false; yallaBtn.textContent = "יאללה! 🐾"; showToast("לא הצלחנו לשלוח את התגובה."); }
-        });
-        return;
-      }
-      var cancelBtn = e.target.closest ? e.target.closest(".meetup-pin-cancel-btn") : null;
-      if(cancelBtn && socket){
-        socket.emit("meetup:cancel", { id: myId, meetupId: cancelBtn.getAttribute("data-meetup-cancel") });
-        leafletMap.closePopup();
-      }
+      // הערה: כפתורי "יאללה"/"ביטול" של סיכת "הצעת מפגש" עצמה (renderMeetupMarkers)
+      // אינם עוברים דרך event delegation כאן - הם נבנים מחדש בכל renderMeetupMarkers()
+      // ומקבלים מאזין קליק ישירות (ולא בתוך פופאפ), כדי שלא יהיה תלוי בהתנהגות
+      // ה-propagation הפנימית של Leaflet לאייקון סמן
     });
   }
 
@@ -2057,14 +2046,10 @@
 
   // סיכות "הצעת נקודת מפגש" פעילות (pending) - שכבה נפרדת מסמני המטיילים, כי הצעת מפגש
   // תקפה ללא קשר לכך שהצדדים "בטיול" כרגע (ראו meetupProposals, מתעדכן דרך meetups:state).
-  // מוצגת גם אצל מי ששלח/ה (עם אפשרות "ביטול הצעה") וגם אצל מי שקיבל/ה (עם "יאללה")
-  function meetupPinIcon(labelText){
-    return L.divIcon({
-      className:"", iconSize:[0,0], iconAnchor:[0,0],
-      html:'<div class="meetup-pin"><div class="meetup-pin-label">'+escapeHtml(labelText)+'</div>' +
-           '<div class="meetup-pin-emoji">📍</div></div>'
-    });
-  }
+  // מוצגת גם אצל מי ששלח/ה (עם "✕" לביטול ישירות בתווית) וגם אצל מי שקיבל/ה (עם "יאללה").
+  // כפתור הפעולה מוטמע ישירות בתוך ה-HTML הגלוי של הסיכה (לא בתוך פופאפ שצריך לפתוח
+  // בלחיצה נפרדת) - כל סיכה נבנית מחדש בכל renderMeetupMarkers (אין setPopupContent/
+  // עדכון חלקי כמו אצל סמני המטיילים), אז אפשר לחבר מאזין קליק ישירות לכפתור בכל פעם
   function renderMeetupMarkers(){
     if(!leafletMap) return;
     if(!meetupMarkersLayer) meetupMarkersLayer = L.layerGroup().addTo(leafletMap);
@@ -2073,14 +2058,33 @@
       if(m.status !== "pending") return;
       var isMine = m.fromId === myId;
       var fromName = displayDogName(m.fromDogName) || "חבר/ה";
-      var labelText = isMine ? ("ההצעה שלך ל" + friendDisplayName(m.toId)) : (fromName + " מציע/ה מפגש");
-      var marker = L.marker([m.lat, m.lng], { icon: meetupPinIcon(labelText), zIndexOffset: 900 }).addTo(meetupMarkersLayer);
-      var popupHtml = "<b>"+escapeHtml(labelText)+"</b>" +
-        (m.label ? "<br>"+escapeHtml(m.label) : "") +
-        "<br>" + (isMine
-          ? "<button type='button' class='invite-btn danger-btn meetup-pin-cancel-btn' data-meetup-cancel='"+escapeHtml(m.id)+"'>ביטול ההצעה</button>"
-          : "<button type='button' class='invite-btn meetup-pin-yalla-btn' data-meetup-from='"+escapeHtml(m.fromId)+"'>יאללה! 🐾</button>");
-      marker.bindPopup("<div class='meetup-pin-popup'>"+popupHtml+"</div>");
+      var labelText = isMine ? ("הצעת מפגש ל" + friendDisplayName(m.toId)) : (fromName + " מציע/ה מפגש");
+      var actionHtml = isMine
+        ? '<button type="button" class="meetup-pin-x" aria-label="ביטול ההצעה">✕</button>'
+        : '<button type="button" class="meetup-pin-yalla" aria-label="יאללה">יאללה 🐾</button>';
+      var icon = L.divIcon({
+        className:"", iconSize:[0,0], iconAnchor:[0,0],
+        html:'<div class="meetup-pin"><div class="meetup-pin-label">' +
+               '<span class="meetup-pin-text">'+escapeHtml(labelText)+'</span>' + actionHtml +
+             '</div><div class="meetup-pin-emoji">📍</div></div>'
+      });
+      var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 }).addTo(meetupMarkersLayer);
+      var el = marker.getElement();
+      var btn = el && el.querySelector(isMine ? ".meetup-pin-x" : ".meetup-pin-yalla");
+      if(btn){
+        btn.addEventListener("click", function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          if(isMine){
+            if(socket) socket.emit("meetup:cancel", { id: myId, meetupId: m.id });
+          } else if(socket){
+            btn.disabled = true; btn.textContent = "שולח/ת…";
+            sendInviteReply(m.fromId, myId, function(ok){
+              if(ok){ showToast("שלחתם יאללה! 🐾"); }
+              else { btn.disabled = false; btn.textContent = "יאללה 🐾"; showToast("לא הצלחנו לשלוח את התגובה."); }
+            });
+          }
+        });
+      }
     });
   }
 
