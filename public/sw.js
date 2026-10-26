@@ -2,7 +2,7 @@
 // כדי שהיא תיפתח מהר גם ברשת חלשה. לא נוגע כלל בקריאות ל-Socket.IO או API - אלה תמיד
 // הולכות לרשת, כי המיקום והנתונים חייבים להיות עדכניים ולא מהמטמון.
 
-const CACHE_NAME = "mi-betiyul-shell-v2";
+const CACHE_NAME = "mi-betiyul-shell-v3";
 const SHELL_FILES = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -98,7 +98,11 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
   // עדיפות לרשת (network-first): כך גרסה חדשה שפורסמה מגיעה מיד בפתיחה הבאה,
-  // ולא רק אחרי ריענון שני. אם אין רשת (למשל אופליין), חוזרים לגרסה השמורה במטמון.
+  // ולא רק אחרי ריענון שני. אם אין רשת (למשל אופליין, או חזרה לאפליקציה מיד אחרי
+  // שהיא הושעתה ברקע - למשל יציאה לניווט בגוגל מאפ וחזרה), חוזרים לגרסה השמורה
+  // במטמון. חשוב: אסור ש-respondWith יתפתר ל-undefined (זה גורם למסך לבן) - אם
+  // אין גם התאמה מדויקת במטמון לבקשת ניווט (מעבר דף), חוזרים למעטפת השמורה ("/")
+  // במקום להישאר בלי תשובה, ואם גם זה לא קיים - תשובת שגיאה תקנית במקום undefined.
   event.respondWith(
     fetch(event.request)
       .then((res) => {
@@ -108,6 +112,14 @@ self.addEventListener("fetch", (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() =>
+        caches.match(event.request).then((cached) => {
+          if (cached) return cached;
+          if (event.request.mode === "navigate") {
+            return caches.match("/").then((shell) => shell || Response.error());
+          }
+          return new Response("", { status: 503, statusText: "Service Unavailable" });
+        })
+      )
   );
 });
