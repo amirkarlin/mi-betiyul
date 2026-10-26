@@ -314,6 +314,15 @@ function cancelMeetup(meetupId, requesterId) {
   saveStore();
   return m;
 }
+// רק מי שקיבל/ה הצעת מפגש (toId) יכול/ה "לדחות" אותה (לא יכול/ה להגיע) - סימטרי לביטול
+// של השולח/ת, אבל בכיוון ההפוך. מחזיר את הרשומה שנדחתה (או null אם לא נמצאה/לא ניתן)
+function declineMeetup(meetupId, requesterId) {
+  const m = store.meetups.find((x) => x.id === meetupId);
+  if (!m || m.status !== "pending" || m.toId !== requesterId) return null;
+  m.status = "cancelled";
+  saveStore();
+  return m;
+}
 // שדות ציבוריים בלבד (לא חושפים notifId - שימושי רק בשרת לקישור לביטול)
 function publicMeetup(m) {
   return { id: m.id, fromId: m.fromId, toId: m.toId, fromDogName: m.fromDogName, lat: m.lat, lng: m.lng, label: m.label, status: m.status, createdAt: m.createdAt };
@@ -671,6 +680,25 @@ io.on("connection", (socket) => {
       markNotificationCancelled(m.toId, m.notifId);
       emitToUser(m.toId, "notifications:state", { entries: getNotifications(m.toId) });
     }
+    broadcastMeetupsTo(m.fromId);
+    broadcastMeetupsTo(m.toId);
+  });
+
+  // גם מי שקיבל/ה הצעת מפגש יכול/ה לדחות אותה ("לא יכול/ה להגיע") - מסיר את הסיכה משני
+  // הצדדים, ושולח התראה חדשה (לא שינוי של ההתראה הקיימת, כי זו כבר אצל מי שקיבל ולא אצל
+  // מי ששלח) למי ששלח/ה את ההצעה, עם שם הכלב שדחה. בלי Push (כמו meetup:cancel) - רק
+  // עדכון חי דרך socket + רשומה מתמידה ב"התראות שקיבלתי" של השולח/ת
+  socket.on("meetup:decline", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id) || typeof (data && data.meetupId) !== "string") return;
+    registerIdentity(socket, id);
+    const m = declineMeetup(data.meetupId, id);
+    if (!m) return;
+    const toProfile = store.profiles[id];
+    const toWalker = walkers.get(id);
+    const toName = displayDogName(toProfile && toProfile.dogName) || displayDogName(toWalker && toWalker.dogName) || "חבר/ה";
+    addNotification(m.fromId, { kind: "info", message: "🚫 " + toName + " לא יכול/ה להגיע" });
+    emitToUser(m.fromId, "notifications:state", { entries: getNotifications(m.fromId) });
     broadcastMeetupsTo(m.fromId);
     broadcastMeetupsTo(m.toId);
   });

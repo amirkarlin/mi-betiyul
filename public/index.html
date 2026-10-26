@@ -297,11 +297,12 @@
   .meetup-pin-popup-title{ font-weight:800; margin-bottom:4px; }
   .meetup-pin-popup-addr{ color:var(--text-muted); margin-bottom:8px; }
   .meetup-pin-popup-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-  .meetup-popup-nav-btn, .meetup-popup-cancel-btn, .meetup-popup-yalla-btn{ appearance:none; border:none;
-    cursor:pointer; border-radius:999px; font-weight:700; font-size:.76rem; padding:7px 12px; white-space:nowrap; }
+  .meetup-popup-nav-btn, .meetup-popup-cancel-btn, .meetup-popup-yalla-btn, .meetup-popup-decline-btn{
+    appearance:none; border:none; cursor:pointer; border-radius:999px; font-weight:700; font-size:.76rem;
+    padding:7px 12px; white-space:nowrap; }
   .meetup-popup-nav-btn{ background:var(--surface-2); color:var(--text); }
   .meetup-popup-yalla-btn{ background:var(--primary); color:var(--primary-ink); }
-  .meetup-popup-cancel-btn{ background:var(--danger-bg); color:var(--danger-text); }
+  .meetup-popup-cancel-btn, .meetup-popup-decline-btn{ background:var(--danger-bg); color:var(--danger-text); }
 
   /* סימון זמני ("הבזק") שמוצג על המפה הראשית כשבאים מ"הצגה על המפה" בהתראה - רלוונטי
      בעיקר כשההצעה כבר לא פעילה (נענתה/בוטלה) ואין שם יותר סיכה אמיתית, כדי שעדיין יהיה
@@ -2042,6 +2043,13 @@
         }
         return;
       }
+      var declineBtn = e.target.closest ? e.target.closest(".meetup-popup-decline-btn") : null;
+      if(declineBtn){
+        var declineId = declineBtn.getAttribute("data-meetup-id");
+        if(socket) socket.emit("meetup:decline", { id: myId, meetupId: declineId });
+        leafletMap.closePopup();
+        return;
+      }
     });
   }
 
@@ -2120,7 +2128,8 @@
       });
       var actionBtnHtml = isMine
         ? '<button type="button" class="meetup-popup-cancel-btn" data-meetup-id="'+escapeHtml(m.id)+'">ביטול ההצעה</button>'
-        : '<button type="button" class="meetup-popup-yalla-btn" data-meetup-id="'+escapeHtml(m.id)+'">יאללה 🐾</button>';
+        : ('<button type="button" class="meetup-popup-yalla-btn" data-meetup-id="'+escapeHtml(m.id)+'">יאללה 🐾</button>' +
+           '<button type="button" class="meetup-popup-decline-btn" data-meetup-id="'+escapeHtml(m.id)+'">לא יכול/ה להגיע</button>');
       var popupHtml =
         '<div class="meetup-pin-popup">' +
           '<div class="meetup-pin-popup-title">'+escapeHtml(labelText)+'</div>' +
