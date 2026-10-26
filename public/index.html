@@ -290,11 +290,24 @@
     font-size:.74rem; font-weight:700; padding:4px 6px 4px 10px; border-radius:999px;
     box-shadow:0 2px 6px rgba(0,0,0,.25); margin-bottom:2px; max-width:220px; }
   .meetup-pin-text{ overflow:hidden; text-overflow:ellipsis; }
-  .meetup-pin-x, .meetup-pin-yalla{ appearance:none; border:none; cursor:pointer; flex:0 0 auto;
+  .meetup-pin-x, .meetup-pin-yalla, .meetup-pin-nav{ appearance:none; border:none; cursor:pointer; flex:0 0 auto;
     font-weight:800; line-height:1; border-radius:999px; }
   .meetup-pin-x{ width:24px; height:24px; background:var(--danger-bg); color:var(--danger-text); font-size:.95rem; }
   .meetup-pin-yalla{ padding:5px 10px; background:var(--primary); color:var(--primary-ink); font-size:.72rem; white-space:nowrap; }
+  .meetup-pin-nav{ width:24px; height:24px; background:var(--bg); color:var(--text); font-size:.9rem;
+    box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
   .meetup-pin-emoji{ font-size:1.9rem; line-height:1; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+
+  /* סימון זמני ("הבזק") שמוצג על המפה הראשית כשבאים מ"הצגה על המפה" בהתראה - רלוונטי
+     בעיקר כשההצעה כבר לא פעילה (נענתה/בוטלה) ואין שם יותר סיכה אמיתית, כדי שעדיין יהיה
+     ברור איפה הייתה הנקודה. נעלם לבד אחרי כמה שניות (ראו flashMapPoint) */
+  .map-flash-marker{ width:28px; height:28px; border-radius:50%; background:rgba(230,57,70,.35);
+    box-shadow:0 0 0 0 rgba(230,57,70,.55); animation:mapFlashPulse 1s ease-out 3; }
+  @keyframes mapFlashPulse{
+    0%{ transform:scale(.6); box-shadow:0 0 0 0 rgba(230,57,70,.55); }
+    70%{ transform:scale(1.4); box-shadow:0 0 0 14px rgba(230,57,70,0); }
+    100%{ transform:scale(.6); box-shadow:0 0 0 0 rgba(230,57,70,0); }
+  }
 
   .nearby-list{ display:flex; flex-direction:column; gap:10px; }
   .walker-card{ display:flex; flex-direction:column; gap:10px; background:var(--surface); border-radius:var(--radius-md);
@@ -1391,7 +1404,7 @@
         (n.read ? '' : '<span class="notif-unread-dot"></span>') +
         '<div style="flex:1;min-width:0">' +
           '<div class="notif-text">'+escapeHtml(n.message)+'</div>' +
-          (hasMeetLoc ? '<a class="link-btn" target="_blank" rel="noopener" href="https://www.google.com/maps/search/?api=1&query='+n.meetLat+','+n.meetLng+'">📍 פתיחת ניווט לנקודה</a>' : '') +
+          (hasMeetLoc ? '<button type="button" class="link-btn notif-show-map-btn" data-lat="'+n.meetLat+'" data-lng="'+n.meetLng+'">📍 הצגה על המפה</button>' : '') +
           '<div class="notif-when">'+escapeHtml(fmtWalkWhen(n.at))+'</div>' +
           (canReply ? '<button type="button" class="invite-btn notif-reply-btn">יאללה! 🐾</button>' : '') +
           (n.kind === "invite" && n.replied ? '<div class="notif-replied">✅ עניתם יאללה</div>' : '') +
@@ -1399,6 +1412,12 @@
         '</div>' +
       '</div>';
     }).join("");
+    Array.prototype.forEach.call(els.notifList.querySelectorAll(".notif-show-map-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        var lat = Number(btn.getAttribute("data-lat")), lng = Number(btn.getAttribute("data-lng"));
+        if(isFinite(lat) && isFinite(lng)) focusMapOnPoint(lat, lng);
+      });
+    });
     Array.prototype.forEach.call(els.notifList.querySelectorAll(".notif-reply-btn"), function(btn){
       btn.addEventListener("click", function(){
         var idx = Number(btn.closest(".notif-entry").getAttribute("data-notif-idx"));
@@ -2062,10 +2081,11 @@
       var actionHtml = isMine
         ? '<button type="button" class="meetup-pin-x" aria-label="ביטול ההצעה">✕</button>'
         : '<button type="button" class="meetup-pin-yalla" aria-label="יאללה">יאללה 🐾</button>';
+      var navHtml = '<button type="button" class="meetup-pin-nav" aria-label="ניווט בגוגל מפות" title="ניווט בגוגל מפות">🧭</button>';
       var icon = L.divIcon({
         className:"", iconSize:[0,0], iconAnchor:[0,0],
         html:'<div class="meetup-pin"><div class="meetup-pin-label">' +
-               '<span class="meetup-pin-text">'+escapeHtml(labelText)+'</span>' + actionHtml +
+               '<span class="meetup-pin-text">'+escapeHtml(labelText)+'</span>' + navHtml + actionHtml +
              '</div><div class="meetup-pin-emoji">📍</div></div>'
       });
       var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 }).addTo(meetupMarkersLayer);
@@ -2085,7 +2105,40 @@
           }
         });
       }
+      var navBtn = el && el.querySelector(".meetup-pin-nav");
+      if(navBtn){
+        navBtn.addEventListener("click", function(ev){
+          ev.preventDefault(); ev.stopPropagation();
+          window.open("https://www.google.com/maps/search/?api=1&query="+m.lat+","+m.lng, "_blank", "noopener");
+        });
+      }
     });
+  }
+
+  // ממרכזים את המפה הראשית (שלנו, לא המיני-מפה של בחירת נקודה) סביב נקודה נתונה וגוללים
+  // אליה - משמש מ"הצגה על המפה" ברשימת "התראות שקיבלתי" (ראו renderNotifications), כדי
+  // שלחיצה על הקישור תציג קודם כל את המפה של האפליקציה עצמה ולא תעיף מיד לגוגל מאפ.
+  // אם ההצעה הרלוונטית כבר לא פעילה (נענתה/בוטלה) ואין שם יותר סיכה אמיתית על המפה,
+  // מוצג "הבזק" זמני (map-flash-marker) כדי שעדיין יהיה ברור איפה הייתה הנקודה.
+  function flashMapPoint(lat, lng){
+    if(!leafletMap) return;
+    var icon = L.divIcon({ className:"", iconSize:[28,28], iconAnchor:[14,14], html:'<div class="map-flash-marker"></div>' });
+    var marker = L.marker([lat, lng], { icon: icon, zIndexOffset: 800, interactive:false }).addTo(leafletMap);
+    setTimeout(function(){ leafletMap.removeLayer(marker); }, 3200);
+  }
+  function focusMapOnPoint(lat, lng){
+    if(!leafletMap){
+      showToast("צריך לאפשר מיקום כדי לראות את המפה");
+      return;
+    }
+    if(els.mapSection && els.mapSection.hidden){
+      showToast("צריך לאפשר מיקום כדי לראות את המפה");
+      return;
+    }
+    leafletMap.setView([lat, lng], Math.max(leafletMap.getZoom(), 16));
+    flashMapPoint(lat, lng);
+    var mapEl = document.getElementById("map");
+    if(mapEl) mapEl.scrollIntoView({behavior:"smooth", block:"center"});
   }
 
   // עדכון "עדין" של תג הכלב (badge) - נוגעים ב-DOM של התמונה רק כשהאייקון/הצבע באמת
