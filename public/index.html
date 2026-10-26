@@ -282,21 +282,26 @@
 
   /* סיכת "הצעת נקודת מפגש" חיה על המפה הראשית - ראו renderMeetupMarkers(). ה-transform
      ממקם את קצה האימוג'י (לא את הפינה השמאלית-עליונה של ה-div) בדיוק על נקודת ה-lat/lng,
-     ללא תלות ברוחב התווית (שם הכלב) מעליו. התווית עצמה תמיד גלויה (לא בתוך פופאפ שצריך
-     לפתוח) וכוללת כפתור פעולה (יאללה/ביטול) ישירות בתוכה */
+     ללא תלות ברוחב התווית (שם הכלב) מעליו. התווית עצמה היא רק תצוגה (בלי כפתורים, לא
+     pointer-events:none!) - לחיצה על הסיכה כולה פותחת פופאפ (bindPopup, ראו
+     .meetup-pin-popup) עם הכתובת והפעולות (ניווט/ביטול/יאללה) */
   .meetup-pin{ display:flex; flex-direction:column; align-items:center; transform:translate(-50%,-100%);
-    white-space:nowrap; }
-  .meetup-pin-label{ display:flex; align-items:center; gap:6px; background:var(--surface); color:var(--text);
-    font-size:.74rem; font-weight:700; padding:4px 6px 4px 10px; border-radius:999px;
+    white-space:nowrap; cursor:pointer; }
+  .meetup-pin-label{ display:flex; align-items:center; background:var(--surface); color:var(--text);
+    font-size:.74rem; font-weight:700; padding:4px 10px; border-radius:999px;
     box-shadow:0 2px 6px rgba(0,0,0,.25); margin-bottom:2px; max-width:220px; }
   .meetup-pin-text{ overflow:hidden; text-overflow:ellipsis; }
-  .meetup-pin-x, .meetup-pin-yalla, .meetup-pin-nav{ appearance:none; border:none; cursor:pointer; flex:0 0 auto;
-    font-weight:800; line-height:1; border-radius:999px; }
-  .meetup-pin-x{ width:24px; height:24px; background:var(--danger-bg); color:var(--danger-text); font-size:.95rem; }
-  .meetup-pin-yalla{ padding:5px 10px; background:var(--primary); color:var(--primary-ink); font-size:.72rem; white-space:nowrap; }
-  .meetup-pin-nav{ width:24px; height:24px; background:var(--bg); color:var(--text); font-size:.9rem;
-    box-shadow:inset 0 0 0 1px rgba(0,0,0,.12); }
   .meetup-pin-emoji{ font-size:1.9rem; line-height:1; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+
+  /* תוכן הפופאפ שנפתח בלחיצה על סיכת "הצעת מפגש" - כתובת + שורת פעולות */
+  .meetup-pin-popup-title{ font-weight:800; margin-bottom:4px; }
+  .meetup-pin-popup-addr{ color:var(--text-muted); margin-bottom:8px; }
+  .meetup-pin-popup-actions{ display:flex; gap:8px; flex-wrap:wrap; }
+  .meetup-popup-nav-btn, .meetup-popup-cancel-btn, .meetup-popup-yalla-btn{ appearance:none; border:none;
+    cursor:pointer; border-radius:999px; font-weight:700; font-size:.76rem; padding:7px 12px; white-space:nowrap; }
+  .meetup-popup-nav-btn{ background:var(--surface-2); color:var(--text); }
+  .meetup-popup-yalla-btn{ background:var(--primary); color:var(--primary-ink); }
+  .meetup-popup-cancel-btn{ background:var(--danger-bg); color:var(--danger-text); }
 
   /* סימון זמני ("הבזק") שמוצג על המפה הראשית כשבאים מ"הצגה על המפה" בהתראה - רלוונטי
      בעיקר כשההצעה כבר לא פעילה (נענתה/בוטלה) ואין שם יותר סיכה אמיתית, כדי שעדיין יהיה
@@ -2003,11 +2008,40 @@
         var tid = meetupBtn.getAttribute("data-popup-meetup");
         leafletMap.closePopup();
         openMeetupModal(tid, friendDisplayName(tid));
+        return;
       }
-      // הערה: כפתורי "יאללה"/"ביטול" של סיכת "הצעת מפגש" עצמה (renderMeetupMarkers)
-      // אינם עוברים דרך event delegation כאן - הם נבנים מחדש בכל renderMeetupMarkers()
-      // ומקבלים מאזין קליק ישירות (ולא בתוך פופאפ), כדי שלא יהיה תלוי בהתנהגות
-      // ה-propagation הפנימית של Leaflet לאייקון סמן
+      // כפתורי הפופאפ של סיכת "הצעת מפגש" עצמה (renderMeetupMarkers, bindPopup) - ניווט/
+      // ביטול/יאללה. מטופלים כאן ב-event delegation (לא במאזין ישיר על הכפתור) כי תוכן
+      // הפופאפ נוצר מחדש בכל renderMeetupMarkers() ומוכנס ל-DOM רק כש-Leaflet פותח אותו.
+      // חשוב: אין pointer-events:none על שום חלק מהסיכה/הפופאפ - זה היה הבאג שגרם
+      // ללחיצות על הסיכה "לעבור" לסמן אחר מתחתיה (ראו סבב תיקונים 28).
+      var navBtn = e.target.closest ? e.target.closest(".meetup-popup-nav-btn") : null;
+      if(navBtn){
+        var navId = navBtn.getAttribute("data-meetup-id");
+        var navM = meetupProposals.filter(function(x){ return x.id === navId; })[0];
+        if(navM) window.open("https://www.google.com/maps/search/?api=1&query="+navM.lat+","+navM.lng, "_blank", "noopener");
+        return;
+      }
+      var cancelBtn = e.target.closest ? e.target.closest(".meetup-popup-cancel-btn") : null;
+      if(cancelBtn){
+        var cancelId = cancelBtn.getAttribute("data-meetup-id");
+        if(socket) socket.emit("meetup:cancel", { id: myId, meetupId: cancelId });
+        leafletMap.closePopup();
+        return;
+      }
+      var yallaBtn = e.target.closest ? e.target.closest(".meetup-popup-yalla-btn") : null;
+      if(yallaBtn){
+        var yallaId = yallaBtn.getAttribute("data-meetup-id");
+        var yallaM = meetupProposals.filter(function(x){ return x.id === yallaId; })[0];
+        if(yallaM && socket){
+          yallaBtn.disabled = true; yallaBtn.textContent = "שולח/ת…";
+          sendInviteReply(yallaM.fromId, myId, function(ok){
+            if(ok){ showToast("שלחתם יאללה! 🐾"); leafletMap.closePopup(); }
+            else { yallaBtn.disabled = false; yallaBtn.textContent = "יאללה 🐾"; showToast("לא הצלחנו לשלוח את התגובה."); }
+          });
+        }
+        return;
+      }
     });
   }
 
@@ -2078,40 +2112,27 @@
       var isMine = m.fromId === myId;
       var fromName = displayDogName(m.fromDogName) || "חבר/ה";
       var labelText = isMine ? ("הצעת מפגש ל" + friendDisplayName(m.toId)) : (fromName + " מציע/ה מפגש");
-      var actionHtml = isMine
-        ? '<button type="button" class="meetup-pin-x" aria-label="ביטול ההצעה">✕</button>'
-        : '<button type="button" class="meetup-pin-yalla" aria-label="יאללה">יאללה 🐾</button>';
-      var navHtml = '<button type="button" class="meetup-pin-nav" aria-label="ניווט בגוגל מפות" title="ניווט בגוגל מפות">🧭</button>';
       var icon = L.divIcon({
         className:"", iconSize:[0,0], iconAnchor:[0,0],
         html:'<div class="meetup-pin"><div class="meetup-pin-label">' +
-               '<span class="meetup-pin-text">'+escapeHtml(labelText)+'</span>' + navHtml + actionHtml +
+               '<span class="meetup-pin-text">'+escapeHtml(labelText)+'</span>' +
              '</div><div class="meetup-pin-emoji">📍</div></div>'
       });
-      var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 }).addTo(meetupMarkersLayer);
-      var el = marker.getElement();
-      var btn = el && el.querySelector(isMine ? ".meetup-pin-x" : ".meetup-pin-yalla");
-      if(btn){
-        btn.addEventListener("click", function(ev){
-          ev.preventDefault(); ev.stopPropagation();
-          if(isMine){
-            if(socket) socket.emit("meetup:cancel", { id: myId, meetupId: m.id });
-          } else if(socket){
-            btn.disabled = true; btn.textContent = "שולח/ת…";
-            sendInviteReply(m.fromId, myId, function(ok){
-              if(ok){ showToast("שלחתם יאללה! 🐾"); }
-              else { btn.disabled = false; btn.textContent = "יאללה 🐾"; showToast("לא הצלחנו לשלוח את התגובה."); }
-            });
-          }
-        });
-      }
-      var navBtn = el && el.querySelector(".meetup-pin-nav");
-      if(navBtn){
-        navBtn.addEventListener("click", function(ev){
-          ev.preventDefault(); ev.stopPropagation();
-          window.open("https://www.google.com/maps/search/?api=1&query="+m.lat+","+m.lng, "_blank", "noopener");
-        });
-      }
+      var actionBtnHtml = isMine
+        ? '<button type="button" class="meetup-popup-cancel-btn" data-meetup-id="'+escapeHtml(m.id)+'">ביטול ההצעה</button>'
+        : '<button type="button" class="meetup-popup-yalla-btn" data-meetup-id="'+escapeHtml(m.id)+'">יאללה 🐾</button>';
+      var popupHtml =
+        '<div class="meetup-pin-popup">' +
+          '<div class="meetup-pin-popup-title">'+escapeHtml(labelText)+'</div>' +
+          '<div class="meetup-pin-popup-addr">📍 '+escapeHtml(m.label || "נקודה שסומנה במפה")+'</div>' +
+          '<div class="meetup-pin-popup-actions">' +
+            '<button type="button" class="meetup-popup-nav-btn" data-meetup-id="'+escapeHtml(m.id)+'">ניווט 🧭</button>' +
+            actionBtnHtml +
+          '</div>' +
+        '</div>';
+      L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 })
+        .addTo(meetupMarkersLayer)
+        .bindPopup(popupHtml);
     });
   }
 
