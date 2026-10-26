@@ -88,14 +88,18 @@ function normalizeStoreShape(parsed) {
     subscriptions: (parsed && typeof parsed.subscriptions === "object" && parsed.subscriptions) || {},
     profiles: (parsed && typeof parsed.profiles === "object" && parsed.profiles) || {},
     walkHistory: (parsed && typeof parsed.walkHistory === "object" && parsed.walkHistory) || {},
-    notifications: (parsed && typeof parsed.notifications === "object" && parsed.notifications) || {}
+    notifications: (parsed && typeof parsed.notifications === "object" && parsed.notifications) || {},
+    // ===== הצעות נקודת מפגש פעילות/שהוכרעו - מערך שטוח (לא keyed לפי משתמש, כי לכל הצעה
+    // יש שני צדדים - fromId ו-toId - וכל אחד מהם צריך לראות אותה) - ראו "הצעת נקודת מפגש
+    // כסיכה חיה במפה" בהערות הטכניות למעלה =====
+    meetups: Array.isArray(parsed && parsed.meetups) ? parsed.meetups : []
   };
 }
 function loadStore() {
   try {
     return normalizeStoreShape(JSON.parse(fs.readFileSync(DATA_FILE, "utf8")));
   } catch (e) {
-    return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {}, notifications: {} };
+    return { favorites: {}, subscriptions: {}, profiles: {}, walkHistory: {}, notifications: {}, meetups: [] };
   }
 }
 const store = loadStore();
@@ -224,6 +228,18 @@ function addNotification(id, entry) {
   list.push(clean);
   store.notifications[id] = list.slice(-MAX_NOTIFICATIONS_PER_USER); // שומרים רק את האחרונות
   saveStore();
+  return clean; // מוחזר כדי שאפשר יהיה לקשר אליו הצעת מפגש (ראו createMeetup) לצורך ביטול מאוחר יותר
+}
+// כש"מבטלים" הצעת מפגש (ראו meetup:cancel) - מסמנים גם את רשומת ההתראה המקורית אצל מי
+// שקיבל/ה אותה כמבוטלת, כדי שכפתור "יאללה" ייעלם משם וכדי שיוצג שם שההצעה בוטלה
+function markNotificationCancelled(toId, notifId) {
+  const list = store.notifications[toId];
+  if (!Array.isArray(list) || !notifId) return;
+  const n = list.find((x) => x.id === notifId);
+  if (n && !n.cancelled) {
+    n.cancelled = true;
+    saveStore();
+  }
 }
 function getNotifications(id) {
   return Array.isArray(store.notifications[id]) ? store.notifications[id].slice().reverse() : []; // חדש לישן
@@ -250,6 +266,61 @@ function markInviteNotificationsReplied(toId, fromId) {
   });
   if (changed) saveStore();
 }
+
+// ===== הצעת נקודת מפגש כסיכה חיה על המפה =====
+// בנוסף להתראה/לרשומה ב"התראות שקיבלתי" (שתלויות ב"invite:send" הקיים), הצעת מפגש עם
+// מיקום מקבלת גם רשומה משלה כאן - כדי שאפשר יהיה להציג אותה כסיכה חיה על המפה גם אצל
+// השולח/ת וגם אצל מי שקיבל/ה אותה (לא רק כהודעת טקסט), ולאפשר ביטול שלה ע"י השולח/ת.
+// מערך שטוח (לא keyed לפי משתמש) כי לכל רשומה שני "בעלים" - fromId ו-toId.
+const MAX_MEETUPS = 300; // מגבלת גודל כדי שקובץ הנתונים לא יגדל בלי סוף
+const MEETUP_RESOLVED_TTL_MS = 24 * 60 * 60 * 1000; // הצעות שהוכרעו (התקבלו/בוטלו) נשמרות רק יממה, להיסטוריה קצרה בלבד
+function pruneMeetups() {
+  const cutoff = Date.now() - MEETUP_RESOLVED_TTL_MS;
+  store.meetups = store.meetups.filter((m) => m.status === "pending" || new Date(m.createdAt).getTime() > cutoff);
+  if (store.meetups.length > MAX_MEETUPS) store.meetups = store.meetups.slice(-MAX_MEETUPS);
+}
+function createMeetup(fromId, toId, fromDogName, lat, lng, label, notifId) {
+  const m = {
+    id: crypto.randomUUID(),
+    fromId, toId,
+    fromDogName: fromDogName || "",
+    lat, lng,
+    label: sanitizeMeetLabel(label) || "נקודה שסומנה במפה",
+    status: "pending", // "pending" | "accepted" | "cancelled"
+    createdAt: new Date().toISOString(),
+    notifId: notifId || null
+  };
+  store.meetups.push(m);
+  pruneMeetups();
+  saveStore();
+  return m;
+}
+// כש"יאללה" נענה בין שני צדדים - כל הצעת מפגש ממתינה ביניהם נחשבת "התקבלה" ומוסרת מהמפה
+function acceptMeetupsBetween(fromId, toId) {
+  let changed = false;
+  store.meetups.forEach((m) => {
+    if (m.status === "pending" && m.fromId === fromId && m.toId === toId) {
+      m.status = "accepted";
+      changed = true;
+    }
+  });
+  if (changed) saveStore();
+}
+// רק השולח/ת של הצעה יכול/ה לבטל אותה. מחזיר את הרשומה שבוטלה (או null אם לא נמצאה/לא ניתן)
+function cancelMeetup(meetupId, requesterId) {
+  const m = store.meetups.find((x) => x.id === meetupId);
+  if (!m || m.status !== "pending" || m.fromId !== requesterId) return null;
+  m.status = "cancelled";
+  saveStore();
+  return m;
+}
+// שדות ציבוריים בלבד (לא חושפים notifId - שימושי רק בשרת לקישור לביטול)
+function publicMeetup(m) {
+  return { id: m.id, fromId: m.fromId, toId: m.toId, fromDogName: m.fromDogName, lat: m.lat, lng: m.lng, label: m.label, status: m.status, createdAt: m.createdAt };
+}
+function getActiveMeetupsFor(id) {
+  return store.meetups.filter((m) => m.status === "pending" && (m.fromId === id || m.toId === id)).map(publicMeetup);
+}
 function sanitizePushSubscription(sub) {
   if (!sub || typeof sub !== "object") return null;
   if (typeof sub.endpoint !== "string" || sub.endpoint.length < 10 || sub.endpoint.length > 600) return null;
@@ -259,6 +330,23 @@ function sanitizePushSubscription(sub) {
 }
 
 const lastInviteAt = new Map(); // "fromId>toId" -> timestamp, לצורך הגבלת קצב (לא חייב לשרוד ריסטארט)
+
+// ===== מיפוי מזהה-משתמש/ת -> socket.id נוכחי - כדי שאפשר יהיה לשדר עדכונים (כמו סיכת הצעת
+// מפגש) ישירות למישהו/י *גם כשהוא/היא לא בטיול פעיל כרגע* (walkers כולל רק מטיילים פעילים).
+// מתעדכן בכל אירוע socket "מזוהה" (checkin/ping/sync/invite) שמגיע עם id תקין =====
+const socketsByUserId = new Map(); // id -> socket.id
+function registerIdentity(socket, id) {
+  if (!isValidId(id)) return;
+  socketsByUserId.set(id, socket.id);
+  socket.data.rid = id;
+}
+function emitToUser(id, event, payload) {
+  const sId = socketsByUserId.get(id);
+  if (sId) io.to(sId).emit(event, payload);
+}
+function broadcastMeetupsTo(id) {
+  emitToUser(id, "meetups:state", { entries: getActiveMeetupsFor(id) });
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -304,6 +392,9 @@ app.post("/api/invite-reply", (req, res) => {
   const toName = displayDogName(toProfile && toProfile.dogName) || "חבר/ה";
   addNotification(fromId, { kind: "yalla", message: "🎉 " + toName + " ענה/תה יאללה! מתכוננים לצאת לגינה" });
   markInviteNotificationsReplied(toId, fromId); // מסתיר את כפתור "יאללה" ברשימת ההתראות של מי שהגיב/ה
+  acceptMeetupsBetween(fromId, toId); // כל הצעת מפגש ממתינה בין השניים מוסרת מהמפה משני הצדדים
+  broadcastMeetupsTo(fromId);
+  broadcastMeetupsTo(toId);
   const sub = store.subscriptions[fromId];
   if (sub) {
     const payload = JSON.stringify({
@@ -483,6 +574,7 @@ io.on("connection", (socket) => {
     if (!isValidCoord(data.lat, data.lng)) return;
 
     myWalkerId = data.id;
+    registerIdentity(socket, data.id);
     const now = new Date().toISOString();
     const existing = walkers.get(data.id);
 
@@ -503,6 +595,7 @@ io.on("connection", (socket) => {
 
   socket.on("ping", (data) => {
     if (!data || typeof data.id !== "string") return;
+    registerIdentity(socket, data.id);
     const w = walkers.get(data.id);
     if (!w) return; // אם אין check-in פעיל, מתעלמים
     if (isValidCoord(data.lat, data.lng)) {
@@ -529,6 +622,7 @@ io.on("connection", (socket) => {
   socket.on("history:sync", (data) => {
     const id = data && data.id;
     if (!isValidId(id)) return;
+    registerIdentity(socket, id);
     socket.emit("history:state", { entries: getWalkHistory(id) });
   });
 
@@ -536,6 +630,7 @@ io.on("connection", (socket) => {
   socket.on("notifications:sync", (data) => {
     const id = data && data.id;
     if (!isValidId(id)) return;
+    registerIdentity(socket, id);
     socket.emit("notifications:state", { entries: getNotifications(id) });
   });
 
@@ -550,8 +645,34 @@ io.on("connection", (socket) => {
   socket.on("favorites:sync", (data) => {
     const id = data && data.id;
     if (!isValidId(id)) return;
+    registerIdentity(socket, id);
     const outgoing = getOutgoingFavorites(id);
     socket.emit("favorites:state", { outgoing, incoming: getIncomingFavorites(id), profiles: getProfileSummaries(outgoing) });
+  });
+
+  // ===== הצעות נקודת מפגש פעילות (סיכות על המפה) - נשלח גם ביוזמת הלקוח (עם טעינת הדף)
+  // וגם בכל פעם שמשהו משתנה (הצעה חדשה/התקבלה/בוטלה), לכל צד רלוונטי =====
+  socket.on("meetups:sync", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id)) return;
+    registerIdentity(socket, id);
+    socket.emit("meetups:state", { entries: getActiveMeetupsFor(id) });
+  });
+
+  // רק מי ששלח/ה הצעת מפגש יכול/ה לבטל אותה - מסיר את הסיכה משני הצדדים ומסמן את
+  // ההתראה המקורית אצל מי שקיבל כמבוטלת (כדי שכפתור "יאללה" ייעלם גם שם)
+  socket.on("meetup:cancel", (data) => {
+    const id = data && data.id;
+    if (!isValidId(id) || typeof (data && data.meetupId) !== "string") return;
+    registerIdentity(socket, id);
+    const m = cancelMeetup(data.meetupId, id);
+    if (!m) return;
+    if (m.notifId) {
+      markNotificationCancelled(m.toId, m.notifId);
+      emitToUser(m.toId, "notifications:state", { entries: getNotifications(m.toId) });
+    }
+    broadcastMeetupsTo(m.fromId);
+    broadcastMeetupsTo(m.toId);
   });
 
   socket.on("favorite:toggle", (data) => {
@@ -569,6 +690,7 @@ io.on("connection", (socket) => {
   socket.on("invite:send", (data) => {
     if (!data || !isValidId(data.id) || !isValidId(data.targetId) || data.id === data.targetId) return;
     const fromId = data.id, toId = data.targetId;
+    registerIdentity(socket, fromId);
 
     if (!isMutualFavorite(fromId, toId)) {
       socket.emit("invite:result", { ok: false, targetId: toId, reason: "not_mutual" });
@@ -621,7 +743,14 @@ io.on("connection", (socket) => {
           notifEntry.meetLng = data.meetLng;
           notifEntry.meetLabel = meetLabel;
         }
-        addNotification(toId, notifEntry);
+        const createdNotif = addNotification(toId, notifEntry);
+        if (hasLocation) {
+          // רושמים גם כ"הצעת מפגש" עצמאית כדי שתוצג כסיכה חיה על המפה אצל שני הצדדים
+          // (לא רק כשורת טקסט ב"התראות שקיבלתי") - ראו "הצעת נקודת מפגש כסיכה חיה במפה" למעלה
+          const meetup = createMeetup(fromId, toId, fromName, data.meetLat, data.meetLng, meetLabel, createdNotif && createdNotif.id);
+          broadcastMeetupsTo(fromId);
+          broadcastMeetupsTo(toId);
+        }
         socket.emit("invite:result", { ok: true, targetId: toId, hasLocation: hasLocation });
       })
       .catch((err) => {
@@ -636,6 +765,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     // לא מוחקים מיד בניתוק - ייתכן ריענון דף/רשת רעועה. הניקוי התקופתי (pruneStale)
     // יטפל במטיילים שבאמת לא חוזרים תוך STALE_MS.
+    // כן מנקים את מיפוי socketsByUserId - אבל רק אם אף חיבור אחר (למשל טאב חדש) לא
+    // כבר "תפס" את אותו מזהה בינתיים, כדי לא למחוק בטעות מיפוי עדכני יותר
+    const rid = socket.data && socket.data.rid;
+    if (rid && socketsByUserId.get(rid) === socket.id) socketsByUserId.delete(rid);
   });
 });
 

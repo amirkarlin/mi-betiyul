@@ -280,6 +280,18 @@
     font-family:"Heebo",sans-serif; font-size:.72rem; font-weight:700; padding:3px 9px; box-shadow:0 2px 6px rgba(0,0,0,.2); }
   .leaflet-tooltip.dog-tooltip::before{ border-top-color:var(--surface); }
 
+  /* סיכת "הצעת נקודת מפגש" חיה על המפה הראשית - ראו renderMeetupMarkers(). ה-transform
+     ממקם את קצה האימוג'י (לא את הפינה השמאלית-עליונה של ה-div) בדיוק על נקודת ה-lat/lng,
+     ללא תלות ברוחב התווית (שם הכלב) מעליו */
+  .meetup-pin{ display:flex; flex-direction:column; align-items:center; transform:translate(-50%,-100%);
+    white-space:nowrap; pointer-events:none; }
+  .meetup-pin-label{ background:var(--surface); color:var(--text); font-size:.68rem; font-weight:700;
+    padding:3px 9px; border-radius:999px; box-shadow:0 2px 6px rgba(0,0,0,.25); margin-bottom:2px; max-width:170px;
+    overflow:hidden; text-overflow:ellipsis; }
+  .meetup-pin-emoji{ font-size:1.9rem; line-height:1; filter:drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+  .meetup-pin-popup .invite-btn{ margin-top:6px; }
+  .invite-btn.danger-btn{ background:var(--danger-bg); color:var(--danger-text); }
+
   .nearby-list{ display:flex; flex-direction:column; gap:10px; }
   .walker-card{ display:flex; flex-direction:column; gap:10px; background:var(--surface); border-radius:var(--radius-md);
     box-shadow:var(--shadow); padding:12px 14px; }
@@ -352,6 +364,7 @@
   .notif-entry .invite-btn{ margin-top:8px; }
   .notif-entry .link-btn{ display:inline-block; margin-top:6px; }
   .notif-entry .notif-replied{ font-size:.78rem; color:var(--text-muted); margin-top:6px; }
+  .notif-entry .notif-cancelled{ font-size:.78rem; color:var(--danger-text); margin-top:6px; }
 
   .invite-reply-banner{ position:fixed; left:16px; right:16px; bottom:16px; z-index:50; max-width:420px;
     margin:0 auto; background:var(--surface); border-radius:var(--radius-md); box-shadow:0 6px 24px rgba(0,0,0,.3);
@@ -678,16 +691,16 @@
     <h2>📍 הצעת נקודת מפגש</h2>
     <div class="meetup-target" id="meetupTarget"></div>
     <div class="meetup-section">
-      <div class="account-code-label">הקלידו כתובת</div>
+      <div class="account-code-label">לחצו במקום הרצוי על המפה</div>
+      <div id="meetupMiniMap" class="meetup-mini-map"></div>
+    </div>
+    <div class="meetup-section">
+      <div class="account-code-label">או הקלידו כתובת</div>
       <div class="account-home-row">
         <input type="text" id="meetupAddressInput" placeholder="לדוגמה: הפארק הירוק, רעננה" autocomplete="off">
         <button type="button" class="btn btn-primary" id="meetupAddressBtn">איתור</button>
       </div>
       <div class="field-error" id="meetupAddressError" hidden></div>
-    </div>
-    <div class="meetup-section">
-      <div class="account-code-label">או לחצו במקום הרצוי על המפה</div>
-      <div id="meetupMiniMap" class="meetup-mini-map"></div>
     </div>
     <div class="meetup-chosen" id="meetupChosen" hidden>נבחרה נקודה: <span id="meetupChosenLabel"></span></div>
     <div class="meetup-actions">
@@ -704,8 +717,8 @@
     <h2>ברוכים הבאים ל"מי בטיול?" 🐾</h2>
     <ul class="onboarding-list">
       <li><span class="paw-ico">🐾</span><span>רואים בזמן אמת אילו כלבים נמצאים כרגע בטיול בסביבה</span></li>
-      <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" ושולחים הזמנה "בוא/י לגינה" בלחיצת כפתור</span></li>
-      <li><span class="paw-ico">🐾</span><span>לחברים הדדיים אפשר גם להציע נקודת מפגש מדויקת - בהקלדת כתובת או בלחיצה על המפה</span></li>
+      <li><span class="paw-ico">🐾</span><span>מסמנים כלבים כ"חברים" (ע"י לחיצה על כוכב ⭐, ורק אם גם הם מסמנים אתכם בחזרה) ושולחים הזמנה "בוא/י לגינה" או מציעים נקודת מפגש על המפה</span></li>
+      <li><span class="paw-ico">🐾</span><span>לחברים הדדיים אפשר להציע נקודת מפגש מדויקת - בלחיצה על המפה או בהקלדת כתובת - והיא תוצג כסיכה 📍 על המפה אצל שניכם, עד שעונים "יאללה" או מבטלים אותה</span></li>
       <li><span class="paw-ico">🐾</span><span>יש לכם קוד אישי (ב"חשבון שלי") שמאפשר לשחזר את הפרופיל והחברים שלכם גם ממכשיר חדש, בלי להירשם מחדש</span></li>
       <li><span class="paw-ico">🐾</span><span>אפשר להגדיר כתובת "בית" כדי שהטיול יסתיים לבד כשחוזרים</span></li>
     </ul>
@@ -1369,7 +1382,7 @@
     }
     els.notifEmptyNote.hidden = true; els.notifList.hidden = false;
     els.notifList.innerHTML = entries.map(function(n, idx){
-      var canReply = n.kind === "invite" && !n.replied && typeof n.fromId === "string" && typeof n.toId === "string";
+      var canReply = n.kind === "invite" && !n.replied && !n.cancelled && typeof n.fromId === "string" && typeof n.toId === "string";
       var hasMeetLoc = typeof n.meetLat === "number" && typeof n.meetLng === "number";
       return '<div class="notif-entry" data-notif-idx="'+idx+'">' +
         (n.read ? '' : '<span class="notif-unread-dot"></span>') +
@@ -1379,6 +1392,7 @@
           '<div class="notif-when">'+escapeHtml(fmtWalkWhen(n.at))+'</div>' +
           (canReply ? '<button type="button" class="invite-btn notif-reply-btn">יאללה! 🐾</button>' : '') +
           (n.kind === "invite" && n.replied ? '<div class="notif-replied">✅ עניתם יאללה</div>' : '') +
+          (n.kind === "invite" && n.cancelled && !n.replied ? '<div class="notif-cancelled">🚫 ההצעה בוטלה</div>' : '') +
         '</div>' +
       '</div>';
     }).join("");
@@ -1502,6 +1516,13 @@
         els.meetupAddressError.textContent = "שגיאת תקשורת. נסו שוב.";
         els.meetupAddressError.hidden = false;
       });
+    });
+  }
+  // Enter בשדה הכתובת מפעיל את אותו איתור מבוקר (geocode) - לא "שולח" טקסט חופשי כברירת
+  // מחדל, כדי לשמור על אותה דרישה: רק כתובת שאותרה בפועל או נקודה שנלחצה במפה מאפשרות שליחה
+  if(els.meetupAddressInput){
+    els.meetupAddressInput.addEventListener("keydown", function(e){
+      if(e.key === "Enter"){ e.preventDefault(); if(els.meetupAddressBtn) els.meetupAddressBtn.click(); }
     });
   }
   if(els.meetupSendBtn){
@@ -1713,6 +1734,7 @@
       socket.emit("favorites:sync", { id: myId });
       socket.emit("history:sync", { id: myId });
       socket.emit("notifications:sync", { id: myId });
+      socket.emit("meetups:sync", { id: myId });
     });
     socket.on("disconnect", function(){ els.connDot.classList.remove("online"); els.connLabel.textContent = "מנותק/ת - מנסה להתחבר מחדש…"; });
     socket.on("walkers:update", function(list){
@@ -1734,6 +1756,11 @@
     socket.on("notifications:state", function(state){
       myNotifications = (state && state.entries) || [];
       renderNotifications();
+    });
+    // הצעות מפגש פעילות (pending) שאני צד בהן - סיכות על המפה (ראו renderMeetupMarkers)
+    socket.on("meetups:state", function(state){
+      meetupProposals = (state && state.entries) || [];
+      renderMeetupMarkers();
     });
     socket.on("invite:result", function(res){
       if(res && res.ok){ showToast(res.hasLocation ? "הצעת המפגש נשלחה! 📍" : "ההזמנה נשלחה! 🐾"); }
@@ -1911,6 +1938,8 @@
   var leafletMap = null;
   var meMarker = null;
   var mapMarkers = {}; // walker id -> L.marker
+  var meetupMarkersLayer = null; // קבוצת שכבה נפרדת לסיכות "הצעת מפגש" פעילות (ראו renderMeetupMarkers)
+  var meetupProposals = []; // הצעות מפגש פעילות (pending) שאני צד בהן - נשלח מהשרת דרך meetups:state
 
   function meIcon(profile){
     var p = profile || getProfile() || {};
@@ -1952,6 +1981,24 @@
         var tid = meetupBtn.getAttribute("data-popup-meetup");
         leafletMap.closePopup();
         openMeetupModal(tid, friendDisplayName(tid));
+        return;
+      }
+      // כפתורים בתוך הפופאפ של סיכת "הצעת מפגש" עצמה (ראו renderMeetupMarkers) - אותו
+      // דפוס event delegation, כי גם הפופאפ הזה נבנה/נהרס דינמית
+      var yallaBtn = e.target.closest ? e.target.closest(".meetup-pin-yalla-btn") : null;
+      if(yallaBtn && socket){
+        var yFromId = yallaBtn.getAttribute("data-meetup-from");
+        yallaBtn.disabled = true; yallaBtn.textContent = "שולח/ת…";
+        sendInviteReply(yFromId, myId, function(ok){
+          if(ok){ showToast("שלחתם יאללה! 🐾"); leafletMap.closePopup(); }
+          else { yallaBtn.disabled = false; yallaBtn.textContent = "יאללה! 🐾"; showToast("לא הצלחנו לשלוח את התגובה."); }
+        });
+        return;
+      }
+      var cancelBtn = e.target.closest ? e.target.closest(".meetup-pin-cancel-btn") : null;
+      if(cancelBtn && socket){
+        socket.emit("meetup:cancel", { id: myId, meetupId: cancelBtn.getAttribute("data-meetup-cancel") });
+        leafletMap.closePopup();
       }
     });
   }
@@ -2004,6 +2051,36 @@
     });
     Object.keys(mapMarkers).forEach(function(id){
       if(!seen[id]){ leafletMap.removeLayer(mapMarkers[id]); delete mapMarkers[id]; }
+    });
+    renderMeetupMarkers();
+  }
+
+  // סיכות "הצעת נקודת מפגש" פעילות (pending) - שכבה נפרדת מסמני המטיילים, כי הצעת מפגש
+  // תקפה ללא קשר לכך שהצדדים "בטיול" כרגע (ראו meetupProposals, מתעדכן דרך meetups:state).
+  // מוצגת גם אצל מי ששלח/ה (עם אפשרות "ביטול הצעה") וגם אצל מי שקיבל/ה (עם "יאללה")
+  function meetupPinIcon(labelText){
+    return L.divIcon({
+      className:"", iconSize:[0,0], iconAnchor:[0,0],
+      html:'<div class="meetup-pin"><div class="meetup-pin-label">'+escapeHtml(labelText)+'</div>' +
+           '<div class="meetup-pin-emoji">📍</div></div>'
+    });
+  }
+  function renderMeetupMarkers(){
+    if(!leafletMap) return;
+    if(!meetupMarkersLayer) meetupMarkersLayer = L.layerGroup().addTo(leafletMap);
+    meetupMarkersLayer.clearLayers();
+    meetupProposals.forEach(function(m){
+      if(m.status !== "pending") return;
+      var isMine = m.fromId === myId;
+      var fromName = displayDogName(m.fromDogName) || "חבר/ה";
+      var labelText = isMine ? ("ההצעה שלך ל" + friendDisplayName(m.toId)) : (fromName + " מציע/ה מפגש");
+      var marker = L.marker([m.lat, m.lng], { icon: meetupPinIcon(labelText), zIndexOffset: 900 }).addTo(meetupMarkersLayer);
+      var popupHtml = "<b>"+escapeHtml(labelText)+"</b>" +
+        (m.label ? "<br>"+escapeHtml(m.label) : "") +
+        "<br>" + (isMine
+          ? "<button type='button' class='invite-btn danger-btn meetup-pin-cancel-btn' data-meetup-cancel='"+escapeHtml(m.id)+"'>ביטול ההצעה</button>"
+          : "<button type='button' class='invite-btn meetup-pin-yalla-btn' data-meetup-from='"+escapeHtml(m.fromId)+"'>יאללה! 🐾</button>");
+      marker.bindPopup("<div class='meetup-pin-popup'>"+popupHtml+"</div>");
     });
   }
 
