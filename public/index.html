@@ -94,6 +94,7 @@
   button:focus-visible, a:focus-visible, input:focus-visible{ outline:2.5px solid var(--primary); outline-offset:2px; }
 
   header.top{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+  .top-actions{ display:flex; align-items:center; gap:8px; }
   .brand{ display:flex; align-items:center; gap:10px; }
   .brand .mark{ width:40px;height:40px;flex:0 0 auto; border-radius:12px; background:var(--primary);
     display:flex;align-items:center;justify-content:center; box-shadow:var(--shadow);
@@ -443,6 +444,31 @@
   .meetup-btn{ background:var(--accent); color:var(--accent-ink); }
   .popup-meetup-btn{ margin-top:6px; }
 
+  /* ===== מודאל "איך מתקינים את האפליקציה" - נפתח מכפתור ההורדה ליד תמונת הפרופיל ===== */
+  .install-guide-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9900;
+    display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  .install-guide-modal{ position:relative; width:100%; max-width:380px; box-sizing:border-box;
+    background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:0 12px 36px -10px rgba(0,0,0,.55);
+    padding:38px 18px 20px; display:flex; flex-direction:column; gap:16px; max-height:88vh; overflow-y:auto; }
+  .install-guide-modal h2{ font-family:"Suez One",Georgia,serif; font-weight:400; font-size:1.15rem;
+    margin:0; text-align:center; }
+  .install-guide-why{ display:flex; gap:10px; align-items:flex-start; background:var(--surface);
+    border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:12px; }
+  .install-guide-why-icon{ font-size:1.5rem; flex:0 0 auto; line-height:1; }
+  .install-guide-why b{ font-size:.88rem; }
+  .install-guide-why p{ margin:4px 0 0; font-size:.82rem; line-height:1.5; color:var(--text-muted); }
+  .install-guide-section h3{ margin:0 0 8px; font-size:.94rem; }
+  .install-guide-steps{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:8px; }
+  .install-guide-steps li{ display:flex; align-items:flex-start; gap:9px; font-size:.82rem; line-height:1.5;
+    background:var(--surface); border-radius:var(--radius-sm); box-shadow:var(--shadow); padding:9px 11px; }
+  .install-guide-steps li b{ font-size:.84rem; }
+  .install-guide-steps li span.sub{ display:block; color:var(--text-muted); margin-top:2px; }
+  .install-guide-num{ flex:0 0 auto; width:22px;height:22px; border-radius:50%; background:var(--primary);
+    color:var(--primary-ink); display:flex; align-items:center; justify-content:center; font-weight:700;
+    font-size:.78rem; margin-top:1px; }
+  .install-guide-done{ text-align:center; font-size:.86rem; line-height:1.5;
+    background:color-mix(in srgb, var(--primary) 16%, var(--surface)); border-radius:var(--radius-sm); padding:12px; }
+
   .onboarding-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999;
     display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
   .onboarding-modal{ position:relative; width:100%; max-width:380px; box-sizing:border-box;
@@ -540,11 +566,16 @@
         <div class="tagline">מי מטייל עם הכלב עכשיו, לידך</div>
       </div>
     </div>
-    <button class="icon-btn" id="editProfileBtn" title="עריכה" hidden>
-      <span class="edit-btn-icon" id="editProfileBtnIcon">
-        <svg viewBox="0 0 24 24"><path d="M4 20.4V16.6l11-11 3.8 3.8-11 11H4Zm14.7-13.9-1.9-1.9 1.6-1.6 1.9 1.9-1.6 1.6Z"/></svg>
-      </span>
-    </button>
+    <div class="top-actions">
+      <button class="icon-btn" id="installGuideBtn" type="button" title="איך מתקינים את האפליקציה" aria-label="איך מתקינים את האפליקציה">
+        <svg viewBox="0 0 24 24"><path d="M12 16.5 6.5 11l1.4-1.4L11 12.7V4h2v8.7l3.1-3.1L17.5 11 12 16.5ZM5 20v-3h2v1h10v-1h2v3H5Z"/></svg>
+      </button>
+      <button class="icon-btn" id="editProfileBtn" title="עריכה" hidden>
+        <span class="edit-btn-icon" id="editProfileBtnIcon">
+          <svg viewBox="0 0 24 24"><path d="M4 20.4V16.6l11-11 3.8 3.8-11 11H4Zm14.7-13.9-1.9-1.9 1.6-1.6 1.9 1.9-1.6 1.6Z"/></svg>
+        </span>
+      </button>
+    </div>
   </header>
 
   <div class="install-banner" id="installBanner" hidden>
@@ -757,6 +788,53 @@
   </div>
 </div>
 
+<div class="install-guide-overlay" id="installGuideOverlay" hidden>
+  <div class="install-guide-modal">
+    <button type="button" class="close-x-btn" id="installGuideCloseBtn" aria-label="סגירה">✕</button>
+    <h2>📲 התקנת האפליקציה</h2>
+
+    <div class="install-guide-why">
+      <div class="install-guide-why-icon">📱</div>
+      <div>
+        <b>למה להתקין?</b>
+        <p>התקנה על המכשיר מאפשרת גישה מהירה, עבודה גם ברשת חלשה, וקבלת התראות מחברים - בדיוק כמו אפליקציה רגילה.</p>
+      </div>
+    </div>
+
+    <div class="install-guide-section">
+      <h3>🍎 התקנה באייפון (Safari)</h3>
+      <ol class="install-guide-steps">
+        <li><span class="install-guide-num">1</span><div><b>פתחו את Safari</b><span class="sub">חשוב! האפליקציה חייבת להיפתח דרך דפדפן Safari</span></div></li>
+        <li><span class="install-guide-num">2</span><div><b>לחצו על כפתור השיתוף ⬆️</b><span class="sub">הכפתור נמצא בתחתית המסך (ריבוע עם חץ למעלה)</span></div></li>
+        <li><span class="install-guide-num">3</span><div><b>בחרו "הוסף למסך הבית"</b></div></li>
+        <li><span class="install-guide-num">4</span><div><b>אשרו את ההתקנה</b><span class="sub">לחצו על "הוסף" בפינה הימנית העליונה</span></div></li>
+      </ol>
+    </div>
+
+    <div class="install-guide-section">
+      <h3>🤖 התקנה באנדרואיד (Chrome)</h3>
+      <ol class="install-guide-steps">
+        <li><span class="install-guide-num">1</span><div><b>פתחו את Chrome</b><span class="sub">גלשו לאפליקציה דרך דפדפן Chrome</span></div></li>
+        <li><span class="install-guide-num">2</span><div><b>לחצו על תפריט שלוש הנקודות ⋮</b><span class="sub">הכפתור נמצא בפינה הימנית העליונה</span></div></li>
+        <li><span class="install-guide-num">3</span><div><b>בחרו "התקנת אפליקציה"</b><span class="sub">(או "הוספה למסך הבית")</span></div></li>
+        <li><span class="install-guide-num">4</span><div><b>אשרו את ההתקנה</b><span class="sub">לחצו "התקן" בחלונית שתופיע</span></div></li>
+      </ol>
+    </div>
+
+    <div class="install-guide-section">
+      <h3>💻 התקנה במחשב (Chrome / Edge)</h3>
+      <ol class="install-guide-steps">
+        <li><span class="install-guide-num">1</span><div><b>פתחו את האפליקציה</b><span class="sub">בדפדפן Chrome או Edge</span></div></li>
+        <li><span class="install-guide-num">2</span><div><b>חפשו סמל התקנה ⊕</b><span class="sub">בסרגל הכתובת מימין, או בתפריט שלוש הנקודות</span></div></li>
+        <li><span class="install-guide-num">3</span><div><b>לחצו "התקנה"</b></div></li>
+        <li><span class="install-guide-num">4</span><div><b>זהו!</b><span class="sub">האפליקציה תיפתח כחלון נפרד ותתווסף לשולחן העבודה/תפריט ההתחלה</span></div></li>
+      </ol>
+    </div>
+
+    <div class="install-guide-done">🎉 <b>זהו! סיימתם</b><br>האפליקציה תופיע על מסך הבית/שולחן העבודה שלכם - אפשר לפתוח אותה משם ישירות ולקבל התראות מחברים.</div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <button type="button" class="a11y-toggle-btn" id="a11yToggleBtn" aria-haspopup="true" aria-expanded="false"
@@ -825,7 +903,8 @@
     meetupAddressInput:$("meetupAddressInput"), meetupAddressBtn:$("meetupAddressBtn"), meetupAddressError:$("meetupAddressError"),
     meetupMiniMap:$("meetupMiniMap"), meetupChosen:$("meetupChosen"), meetupChosenLabel:$("meetupChosenLabel"),
     meetupSendBtn:$("meetupSendBtn"), meetupCancelBtn:$("meetupCancelBtn"), meetupCloseBtn:$("meetupCloseBtn"),
-    addDogOverlay:$("addDogOverlay"), addDogCloseBtn:$("addDogCloseBtn"), addDogMailBtn:$("addDogMailBtn")
+    addDogOverlay:$("addDogOverlay"), addDogCloseBtn:$("addDogCloseBtn"), addDogMailBtn:$("addDogMailBtn"),
+    installGuideBtn:$("installGuideBtn"), installGuideOverlay:$("installGuideOverlay"), installGuideCloseBtn:$("installGuideCloseBtn")
   };
 
   // ===== קוביית פידבק (בטא) - כפתור "יצירת קשר" פותח טיוטת מייל חדשה. בונים את ה-href
@@ -849,6 +928,22 @@
   if(els.addDogCloseBtn) els.addDogCloseBtn.addEventListener("click", hideAddDogModal);
   if(els.addDogOverlay) els.addDogOverlay.addEventListener("click", function(e){
     if(e.target === els.addDogOverlay) hideAddDogModal();
+  });
+
+  // ===== מודאל "איך מתקינים את האפליקציה" - נפתח מכפתור ההורדה בכותרת (ליד תמונת
+  // הפרופיל), עם הסבר שלב-אחר-שלב להתקנה באייפון/אנדרואיד/מחשב. אינפורמטיבי בלבד -
+  // לא קשור ללוגיקת showInstallBanner הקיימת (שמוצגת אוטומטית פעם אחת ונסגרת לצמיתות) =====
+  function showInstallGuideModal(){
+    if(!els.installGuideOverlay) return;
+    els.installGuideOverlay.hidden = false;
+  }
+  function hideInstallGuideModal(){
+    if(els.installGuideOverlay) els.installGuideOverlay.hidden = true;
+  }
+  if(els.installGuideBtn) els.installGuideBtn.addEventListener("click", showInstallGuideModal);
+  if(els.installGuideCloseBtn) els.installGuideCloseBtn.addEventListener("click", hideInstallGuideModal);
+  if(els.installGuideOverlay) els.installGuideOverlay.addEventListener("click", function(e){
+    if(e.target === els.installGuideOverlay) hideInstallGuideModal();
   });
 
   var FALLBACK_PAW_SVG = '<svg viewBox="0 0 24 24" fill="currentColor" style="color:var(--text-muted)">'+
