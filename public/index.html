@@ -1963,6 +1963,14 @@
   }
   window.addEventListener("pagehide", function(){ if(isWalking) deleteMyDoc(); });
 
+  // כשחוזרים לאפליקציה אחרי יציאה חיצונית (כמו "ניווט" לגוגל מאפ, ראו סבב תיקונים 35)
+  // דרך שחזור מ-bfcache (event.persisted) - סוגרים כל פופאפ שנשאר פתוח מלפני היציאה,
+  // כדי שבחזרה רואים ישר את מסך הבית הרגיל של האפליקציה, בלי שום מסך/חלונית ביניים
+  // ובלי צורך בשום פעולה נוספת מצד המשתמש/ת.
+  window.addEventListener("pageshow", function(e){
+    if(e.persisted && leafletMap) leafletMap.closePopup();
+  });
+
   var leafletMap = null;
   var meMarker = null;
   var mapMarkers = {}; // walker id -> L.marker
@@ -2026,8 +2034,15 @@
       if(navBtn){
         var navId = navBtn.getAttribute("data-meetup-id");
         var navM = meetupProposals.filter(function(x){ return x.id === navId; })[0];
-        if(navM) window.open("https://www.google.com/maps/search/?api=1&query="+navM.lat+","+navM.lng, "_blank", "noopener");
         leafletMap.closePopup();
+        // ניווט ישיר (לא window.open עם target חדש!) - בתוך PWA במצב standalone, window.open
+        // נוטה לפתוח "דפדפן מוטבע" (sheet) שעלול להציג מסך לבן עם X לסגירה במקום להעביר
+        // בפועל ל-Google Maps (ראו דיווח משתמש, סבב תיקונים 35). ניווט ישיר דרך location.href
+        // מתנהג כמו קליק על קישור רגיל - נותן למערכת ההפעלה הזדמנות אמיתית להעביר ישירות
+        // לאפליקציית Maps המותקנת (Universal/App Link) בלי לעבור דרך שום דפדפן מוטבע שבור,
+        // וכשחוזרים חזרה ל-PWA (עם כפתור "חזרה" של המערכת, לא ניווט בתוך הדף עצמו) חוזרים
+        // בדיוק לאותו עמוד שהיה פתוח - בלי מסך ביניים כלשהו.
+        if(navM) window.location.href = "https://www.google.com/maps/search/?api=1&query="+navM.lat+","+navM.lng;
         return;
       }
       var cancelBtn = e.target.closest ? e.target.closest(".meetup-popup-cancel-btn") : null;
