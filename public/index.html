@@ -1968,6 +1968,12 @@
   var mapMarkers = {}; // walker id -> L.marker
   var meetupMarkersLayer = null; // קבוצת שכבה נפרדת לסיכות "הצעת מפגש" פעילות (ראו renderMeetupMarkers)
   var meetupProposals = []; // הצעות מפגש פעילות (pending) שאני צד בהן - נשלח מהשרת דרך meetups:state
+  var meetupPopupSuppressUntil = 0; // זמן (Date.now) שעד אליו לא בונים מחדש את סיכות המפגש -
+  // נקבע כשנפתח פופאפ של סיכת מפגש, כדי שהפופאפ יישאר על המסך לפחות 10 שניות ולא ייסגר
+  // מוקדם בגלל renderMeetupMarkers שרץ מחדש (ping/meetups:state) ומוחק את הסמן הישן (ראו
+  // תיעוד מלא ב-renderMeetupMarkers למטה)
+  var meetupPendingRerender = false; // סומן כ-true אם renderMeetupMarkers דולג בזמן ההשהיה,
+  // כדי שמיד כשההשהיה מסתיימת (או כשהפופאפ נסגר יזומה) יתבצע רינדור מעודכן אחד
 
   function meIcon(profile){
     var p = profile || getProfile() || {};
@@ -2021,6 +2027,7 @@
         var navId = navBtn.getAttribute("data-meetup-id");
         var navM = meetupProposals.filter(function(x){ return x.id === navId; })[0];
         if(navM) window.open("https://www.google.com/maps/search/?api=1&query="+navM.lat+","+navM.lng, "_blank", "noopener");
+        leafletMap.closePopup();
         return;
       }
       var cancelBtn = e.target.closest ? e.target.closest(".meetup-popup-cancel-btn") : null;
@@ -2114,6 +2121,16 @@
   function renderMeetupMarkers(){
     if(!leafletMap) return;
     if(!meetupMarkersLayer) meetupMarkersLayer = L.layerGroup().addTo(leafletMap);
+    // אם פופאפ של סיכת מפגש נפתח לאחרונה (פחות מ-10 שניות), לא בונים מחדש את השכבה עכשיו -
+    // clearLayers() למטה הורס את הסמן הקיים ומוחק איתו כל פופאפ פתוח, עוד לפני שהספיקו ללחוץ
+    // על אחד הכפתורים שבתוכו (זה היה הבאג: "הפופ אפ קופץ לזמן קצר מדי"). ברגע שההשהיה מסתיימת,
+    // או ברגע שהפופאפ נסגר יזומה (לחיצה על כפתור פעולה), מתבצע רינדור מעודכן אחד (ראו popupopen/
+    // popupclose על כל סמן למטה).
+    if(Date.now() < meetupPopupSuppressUntil){
+      meetupPendingRerender = true;
+      return;
+    }
+    meetupPendingRerender = false;
     meetupMarkersLayer.clearLayers();
     meetupProposals.forEach(function(m){
       if(m.status !== "pending") return;
@@ -2139,9 +2156,21 @@
             actionBtnHtml +
           '</div>' +
         '</div>';
-      L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 })
+      var marker = L.marker([m.lat, m.lng], { icon: icon, zIndexOffset: 900 })
         .addTo(meetupMarkersLayer)
         .bindPopup(popupHtml);
+      // בפתיחת הפופאפ - משהים את renderMeetupMarkers ל-10 שניות (ראו למעלה), ומתזמנים רינדור
+      // מעודכן לאחר מכן כדי לתפוס שינויים שהתקבלו בינתיים מהשרת. בסגירה (כולל סגירה יזומה
+      // מתוך כפתורי הפעולה - ניווט/ביטול/יאללה/לא יכול/ה להגיע) מבטלים את ההשהיה מיד, כדי
+      // שעדכון מהשרת (למשל אחרי ביטול/דחייה) יוחל בלי להמתין לחלון שלם.
+      marker.on("popupopen", function(){
+        meetupPopupSuppressUntil = Date.now() + 10000;
+        setTimeout(function(){ renderMeetupMarkers(); }, 10050);
+      });
+      marker.on("popupclose", function(){
+        meetupPopupSuppressUntil = 0;
+        if(meetupPendingRerender) renderMeetupMarkers();
+      });
     });
   }
 
