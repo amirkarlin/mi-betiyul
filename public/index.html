@@ -175,6 +175,20 @@
   /* הטקסט עדיין קיים ב-DOM לנגישות (קוראי מסך) אך חבוי חזותית - העיצוב מגיע מתמונת המדבקה עצמה */
   #ctaLabel, #ctaSub{ position:absolute; width:1px;height:1px; overflow:hidden; clip:rect(0 0 0 0);
     white-space:nowrap; }
+  /* פעימת "לחצו עליי" סביב הכפתור העגול - כדי שיהיה ברור שזה כפתור לחיץ ולא רק מדבקה דקורטיבית */
+  @keyframes ctaPulse{
+    0%{ box-shadow:0 10px 30px -10px rgba(0,0,0,.4), var(--shadow), 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent); }
+    70%{ box-shadow:0 10px 30px -10px rgba(0,0,0,.4), var(--shadow), 0 0 0 16px color-mix(in srgb, var(--primary) 0%, transparent); }
+    100%{ box-shadow:0 10px 30px -10px rgba(0,0,0,.4), var(--shadow), 0 0 0 0 color-mix(in srgb, var(--primary) 0%, transparent); }
+  }
+  .cta{ animation:ctaPulse 2.2s ease-out infinite; }
+  @media (prefers-reduced-motion: reduce){ .cta{ animation:none; } }
+  /* הערת "לחצו כאן" מתחת לכפתור - טקסט אמיתי וגלוי (לא רק לנגישות), עם אייקון קופץ בעדינות */
+  .cta-tap-hint{ margin:8px 0 0; font-size:.82rem; font-weight:700; color:var(--primary);
+    display:flex; align-items:center; justify-content:center; gap:4px; }
+  .cta-tap-hint .tap-emoji{ display:inline-block; animation:ctaTapBounce 1.4s ease-in-out infinite; }
+  @keyframes ctaTapBounce{ 0%,100%{ transform:translateY(0); } 50%{ transform:translateY(3px); } }
+  @media (prefers-reduced-motion: reduce){ .cta-tap-hint .tap-emoji{ animation:none; } }
   .walk-timer{ font-variant-numeric:tabular-nums; font-size:.95rem; font-weight:600; color:var(--text-muted);
     background:var(--surface); border-radius:999px; padding:6px 16px; box-shadow:var(--shadow); }
 
@@ -373,6 +387,8 @@
      לבן כמו שאר הקוביות באפליקציה (empty-note וכו'), כדי שבאמת יהיו בולטות ולא "ייעלמו" */
   .section-hint{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow);
     padding:12px 14px; font-size:.82rem; color:var(--text-muted); line-height:1.5; margin:0 0 10px; }
+  /* וריאציה "חיובית" של ההערה - למשל אישור שהתראות כבר פעילות (להבדיל מהערת "כדאי להפעיל") */
+  .section-hint--ok{ border-inline-start:3px solid var(--live); padding-inline-start:11px; }
 
   /* ===== קוביית אישור גנרית (כרגע: אישור הסרה מהמועדפים) ===== */
   .confirm-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9850;
@@ -630,6 +646,8 @@
         <span id="ctaLabel">יצאתי<br>לטיול</span>
         <small id="ctaSub">הפוך/הפכי לגלוי/ה</small>
       </button>
+
+      <p class="cta-tap-hint" id="ctaTapHint"><span class="tap-emoji" aria-hidden="true">👆</span> לחצו כדי לצאת לטיול</p>
 
       <p class="cta-location-note">המיקום שלך משודר לשרת ולצופים אחרים באפליקציה רק כשאת/ה מסומן/ת כ"בטיול". אפשר לסיים בכל רגע.</p>
 
@@ -910,7 +928,7 @@
   var els = {
     gate:$("gate"), gateErr:$("gateErr"), enableLocationBtn:$("enableLocationBtn"),
     mainApp:$("mainApp"), editProfileBtn:$("editProfileBtn"),
-    statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"),
+    statusLine:$("statusLine"), ctaBtn:$("ctaBtn"), ctaLabel:$("ctaLabel"), ctaSub:$("ctaSub"), ctaTapHint:$("ctaTapHint"),
     walkTimer:$("walkTimer"), profileForm:$("profileForm"), profileSubmitBtn:$("profileSubmitBtn"), dogName:$("dogName"), dogBreed:$("dogBreed"),
     profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"), dogNameError:$("dogNameError"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
@@ -1362,9 +1380,18 @@
       });
     });
   }
+  function setNotifHint(active){
+    // ה"הערה הקבועה" מעל "התראות שקיבלתי" (els.notifHint): כל עוד ההתראות לא פעילות
+    // מראה הסבר שכדאי להפעיל; ברגע שהן פעילות בפועל עוברת לנוסח אישור חיובי (ולא נעלמת) -
+    // כדי שיהיה ברור וקבוע שההתראות אכן דולקות.
+    if(!els.notifHint) return;
+    els.notifHint.hidden = false;
+    els.notifHint.classList.toggle("section-hint--ok", !!active);
+    els.notifHint.textContent = active
+      ? "✅ ההתראות פעילות - תקבלו עדכון כשחבר/ה יזמינ/ה אתכם לגינה או יציע/תציע נקודת מפגש, גם כשהאפליקציה סגורה."
+      : "💡 כדאי להפעיל - כך תקבלו התראה כשחבר/ה מזמינ/ה אתכם לגינה או מציע/ה נקודת מפגש, גם כשהאפליקציה סגורה.";
+  }
   function refreshNotifyBtn(){
-    // ה"הערה הקבועה" מעל "התראות שקיבלתי" (els.notifHint) מזכירה שצריך להפעיל התראות -
-    // מוצגת רק כל עוד ההתראות עדיין לא פעילות בפועל, ונעלמת לבד ברגע שהן כן
     if(!pushSupported()){
       els.notifyBtn.hidden = true;
       if(els.notifHint) els.notifHint.hidden = true;
@@ -1372,22 +1399,22 @@
     }
     if(Notification.permission === "denied"){
       els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן";
-      if(els.notifHint) els.notifHint.hidden = false;
+      setNotifHint(false);
       return;
     }
     if(Notification.permission !== "granted"){
       els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
-      if(els.notifHint) els.notifHint.hidden = false;
+      setNotifHint(false);
       return;
     }
     navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); })
       .then(function(sub){
         els.notifyBtn.textContent = sub ? "🔕 כיבוי התראות" : "🔔 הפעילו התראות מחברים";
-        if(els.notifHint) els.notifHint.hidden = !!sub;
+        setNotifHint(!!sub);
       })
       .catch(function(){
         els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
-        if(els.notifHint) els.notifHint.hidden = false;
+        setNotifHint(false);
       });
   }
   els.notifyBtn.addEventListener("click", function(){
@@ -2021,12 +2048,14 @@
       els.ctaSub.textContent = "את/ה כרגע גלוי/ה";
       els.statusLine.innerHTML = '<span class="live-dot"></span><span>את/ה בטיול — גלוי/ה למטיילים אחרים</span>';
       els.walkTimer.hidden = false;
+      if(els.ctaTapHint) els.ctaTapHint.innerHTML = '<span class="tap-emoji" aria-hidden="true">👆</span> לחצו כדי לסיים את הטיול';
     } else {
       els.ctaBtn.classList.remove("walking");
       els.ctaLabel.innerHTML = "יצאתי<br>לטיול";
       els.ctaSub.textContent = "הפוך/הפכי לגלוי/ה";
       els.statusLine.innerHTML = "<span>לא בטיול כרגע — רואים אותך רק במפה שלך</span>";
       els.walkTimer.hidden = true;
+      if(els.ctaTapHint) els.ctaTapHint.innerHTML = '<span class="tap-emoji" aria-hidden="true">👆</span> לחצו כדי לצאת לטיול';
     }
   }
 
