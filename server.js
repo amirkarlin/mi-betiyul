@@ -202,7 +202,7 @@ const MAX_NOTIFICATIONS_PER_USER = 100; // מגבלה כדי שקובץ הנתו
 // (ולא רק דרך כפתור בהתראת ה-Push או קישור עומק, שלא תמיד עובדים - למשל באייפון)
 function addNotification(id, entry) {
   if (!isValidId(id) || !entry || typeof entry.message !== "string" || !entry.message.trim()) return;
-  const kind = (entry.kind === "invite" || entry.kind === "yalla") ? entry.kind : "info";
+  const kind = (entry.kind === "invite" || entry.kind === "yalla" || entry.kind === "star") ? entry.kind : "info";
   const clean = {
     id: crypto.randomUUID(),
     kind,
@@ -223,6 +223,12 @@ function addNotification(id, entry) {
       clean.meetLng = entry.meetLng;
       clean.meetLabel = sanitizeMeetLabel(entry.meetLabel);
     }
+  }
+  // ===== התראת "מישהו/י סימן/ה אותך כמועדף/ת" - שומרים fromId כדי שאפשר יהיה להציג
+  // בלקוח כפתור "סמן/י גם בחזרה" ישירות מתוך רשימת ההתראות (ראו favorite:toggle) =====
+  if (kind === "star") {
+    if (!isValidId(entry.fromId)) return;
+    clean.fromId = entry.fromId;
   }
   const list = Array.isArray(store.notifications[id]) ? store.notifications[id] : [];
   list.push(clean);
@@ -703,11 +709,51 @@ io.on("connection", (socket) => {
     broadcastMeetupsTo(m.toId);
   });
 
+  // כשמסמנים מועדף/ת חדש/ה (on:true, לא היה מסומן קודם) - שולחים למי שסומן/ה התראה (גם
+  // ב"התראות שקיבלתי" וגם Push אם יש הרשמה) עם אפשרות לסמן בחזרה ישירות מתוך ההתראה.
+  // גם מעדכנים בזמן אמת את favorites:state של הצד השני (לא רק של מי שלחץ/ה) - כדי שה"מועדפים
+  // ההדדיים" וכפתור "סמן/י גם בחזרה" יהיו מדויקים אצלו/ה מייד, בלי להמתין לסנכרון הבא.
   socket.on("favorite:toggle", (data) => {
     if (!data || !isValidId(data.id) || !isValidId(data.targetId) || data.id === data.targetId) return;
+    registerIdentity(socket, data.id);
+    const wasStarred = getOutgoingFavorites(data.id).indexOf(data.targetId) !== -1;
     setFavorite(data.id, data.targetId, !!data.on);
+
     const outgoing = getOutgoingFavorites(data.id);
     socket.emit("favorites:state", { outgoing, incoming: getIncomingFavorites(data.id), profiles: getProfileSummaries(outgoing) });
+
+    const targetOutgoing = getOutgoingFavorites(data.targetId);
+    emitToUser(data.targetId, "favorites:state", {
+      outgoing: targetOutgoing,
+      incoming: getIncomingFavorites(data.targetId),
+      profiles: getProfileSummaries(targetOutgoing)
+    });
+
+    if (data.on && !wasStarred) {
+      const fromWalker = walkers.get(data.id);
+      const fromProfile = store.profiles[data.id];
+      const fromName = displayDogName(fromProfile && fromProfile.dogName) || displayDogName(fromWalker && fromWalker.dogName) || "חבר/ה";
+      addNotification(data.targetId, {
+        kind: "star",
+        message: "⭐ " + fromName + " סימן/ה אותך כמועדף/ת! אפשר לסמן גם בחזרה כדי להיות חברים ולשלוח הזמנות \"בוא/י לגינה\".",
+        fromId: data.id
+      });
+      emitToUser(data.targetId, "notifications:state", { entries: getNotifications(data.targetId) });
+      const sub = store.subscriptions[data.targetId];
+      if (sub) {
+        const payload = JSON.stringify({
+          title: "⭐ " + fromName + " סימן/ה אותך כמועדף/ת!",
+          body: "פתחו את מי בטיול כדי לסמן גם בחזרה ולהיות חברים.",
+          kind: "star"
+        });
+        webpush.sendNotification(sub, payload).catch((err) => {
+          if (err && (err.statusCode === 404 || err.statusCode === 410)) {
+            delete store.subscriptions[data.targetId];
+            saveStore();
+          }
+        });
+      }
+    }
   });
 
   // ===== הזמנת "בוא/י לגינה" - דורשת כוכב הדדי, נשלחת דרך Push גם אם היעד/ת מנותק/ת.

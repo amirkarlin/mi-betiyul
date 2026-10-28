@@ -369,6 +369,20 @@
   .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
     text-align:center; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
 
+  /* הערות קבועות מעל רשימות (למשל: הסבר על כוכב מועדפים, תזכורת להפעלת התראות) */
+  .section-hint{ font-size:.78rem; color:var(--text-muted); line-height:1.5; margin:-2px 0 10px; }
+
+  /* ===== קוביית אישור גנרית (כרגע: אישור הסרה מהמועדפים) ===== */
+  .confirm-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9850;
+    display:flex; align-items:center; justify-content:center; padding:20px; box-sizing:border-box; }
+  .confirm-modal{ position:relative; width:100%; max-width:320px; box-sizing:border-box;
+    background:var(--surface-2); border-radius:var(--radius-lg); box-shadow:0 12px 36px -10px rgba(0,0,0,.55);
+    padding:22px 18px; display:flex; flex-direction:column; gap:16px; text-align:center; }
+  .confirm-modal p{ margin:0; font-size:.9rem; line-height:1.6; }
+  .confirm-actions{ display:flex; gap:10px; }
+  .confirm-actions .btn{ flex:1; padding:11px 14px; font-size:.88rem; }
+  .confirm-actions .btn-secondary{ background:var(--surface); color:var(--text); box-shadow:var(--shadow); }
+
   .walks-summary-card{ appearance:none; border:none; cursor:pointer; width:100%; box-sizing:border-box;
     display:flex; flex-direction:column; text-align:right; font-family:inherit;
     background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:0;
@@ -692,6 +706,7 @@
     </div>
 
     <div class="panel-title"><h2>בטיול עכשיו</h2><span id="nearbyCount"></span></div>
+    <div class="section-hint">⭐ סמנו מועדף/ת - אם יסמנו גם אתכם בחזרה תהיו חברים, ותוכלו לשלוח זה לזה נקודת מפגש.</div>
     <div id="nearbyContainer">
       <div class="empty-note" id="emptyNote">עדיין לא רואים כאן אף אחד. ברגע שמישהו לידך ילחץ על "יצאתי לטיול", הוא/היא יופיעו כאן.</div>
       <div class="nearby-list" id="nearbyList"></div>
@@ -723,6 +738,7 @@
       <div class="nearby-list" id="walksList"></div>
     </div>
 
+    <div class="section-hint" id="notifHint">💡 כדי לקבל כאן התראות מחברים (גם כשהאפליקציה סגורה), צריך קודם ללחוץ למעלה על "הפעילו התראות מחברים".</div>
     <button type="button" class="walks-summary-card" id="notifSummaryBtn" aria-expanded="false">
       <span class="walks-summary-head">
         <span class="walks-summary-title">התראות שקיבלתי</span>
@@ -797,6 +813,16 @@
     <h2>לא מוצא/ת את הכלב שלך?</h2>
     <p>שלח/י לנו תמונה ונכניס אותו למאגר</p>
     <a class="btn btn-primary" id="addDogMailBtn" href="#">שליחת תמונה ✉️</a>
+  </div>
+</div>
+
+<div class="confirm-overlay" id="confirmOverlay" hidden>
+  <div class="confirm-modal">
+    <p id="confirmMessage"></p>
+    <div class="confirm-actions">
+      <button type="button" class="btn btn-secondary" id="confirmCancelBtn">ביטול</button>
+      <button type="button" class="btn btn-primary" id="confirmOkBtn">הסרה</button>
+    </div>
   </div>
 </div>
 
@@ -916,7 +942,9 @@
     meetupMiniMap:$("meetupMiniMap"), meetupChosen:$("meetupChosen"), meetupChosenLabel:$("meetupChosenLabel"),
     meetupSendBtn:$("meetupSendBtn"), meetupCancelBtn:$("meetupCancelBtn"), meetupCloseBtn:$("meetupCloseBtn"),
     addDogOverlay:$("addDogOverlay"), addDogCloseBtn:$("addDogCloseBtn"), addDogMailBtn:$("addDogMailBtn"),
-    installGuideBtn:$("installGuideBtn"), installGuideOverlay:$("installGuideOverlay"), installGuideCloseBtn:$("installGuideCloseBtn")
+    installGuideBtn:$("installGuideBtn"), installGuideOverlay:$("installGuideOverlay"), installGuideCloseBtn:$("installGuideCloseBtn"),
+    confirmOverlay:$("confirmOverlay"), confirmMessage:$("confirmMessage"), confirmCancelBtn:$("confirmCancelBtn"), confirmOkBtn:$("confirmOkBtn"),
+    notifHint:$("notifHint")
   };
 
   // ===== קוביית פידבק (בטא) - כפתור "יצירת קשר" פותח טיוטת מייל חדשה. בונים את ה-href
@@ -941,6 +969,34 @@
   if(els.addDogOverlay) els.addDogOverlay.addEventListener("click", function(e){
     if(e.target === els.addDogOverlay) hideAddDogModal();
   });
+
+  // ===== קוביית אישור גנרית - כרגע משמשת רק לפני הסרה ממועדפים (כוכב), כדי שלא ימחקו חבר/ה
+  // בטעות בלחיצה אחת. נבנתה כללית (הודעה + callback) כדי שאפשר יהיה להשתמש בה גם במקומות
+  // עתידיים שדורשים אישור לפני פעולה בלתי הפיכה =====
+  var confirmPendingAction = null;
+  function openConfirm(message, onConfirm){
+    if(!els.confirmOverlay){ onConfirm(); return; } // נפילה בטוחה אם המודאל לא קיים משום מה
+    els.confirmMessage.textContent = message;
+    confirmPendingAction = onConfirm;
+    els.confirmOverlay.hidden = false;
+  }
+  function closeConfirm(){
+    if(els.confirmOverlay) els.confirmOverlay.hidden = true;
+    confirmPendingAction = null;
+  }
+  if(els.confirmCancelBtn) els.confirmCancelBtn.addEventListener("click", closeConfirm);
+  if(els.confirmOverlay) els.confirmOverlay.addEventListener("click", function(e){
+    if(e.target === els.confirmOverlay) closeConfirm();
+  });
+  if(els.confirmOkBtn) els.confirmOkBtn.addEventListener("click", function(){
+    var action = confirmPendingAction;
+    closeConfirm();
+    if(action) action();
+  });
+  function confirmUnstarFriend(targetId, onConfirm){
+    var name = friendDisplayName(targetId);
+    openConfirm("בטוח/ה שברצונך להסיר את " + name + " מרשימת המועדפים? לא תראו אותו/ה יותר ברשימה.", onConfirm);
+  }
 
   // ===== מודאל "איך מתקינים את האפליקציה" - נפתח מכפתור ההורדה בכותרת (ליד תמונת
   // הפרופיל), עם הסבר שלב-אחר-שלב להתקנה באייפון/אנדרואיד/מחשב. אינפורמטיבי בלבד -
@@ -1305,16 +1361,32 @@
     });
   }
   function refreshNotifyBtn(){
-    if(!pushSupported()){ els.notifyBtn.hidden = true; return; }
+    // ה"הערה הקבועה" מעל "התראות שקיבלתי" (els.notifHint) מזכירה שצריך להפעיל התראות -
+    // מוצגת רק כל עוד ההתראות עדיין לא פעילות בפועל, ונעלמת לבד ברגע שהן כן
+    if(!pushSupported()){
+      els.notifyBtn.hidden = true;
+      if(els.notifHint) els.notifHint.hidden = true;
+      return;
+    }
     if(Notification.permission === "denied"){
-      els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן"; return;
+      els.notifyBtn.textContent = "🔕 התראות חסומות בדפדפן";
+      if(els.notifHint) els.notifHint.hidden = false;
+      return;
     }
     if(Notification.permission !== "granted"){
-      els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים"; return;
+      els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
+      if(els.notifHint) els.notifHint.hidden = false;
+      return;
     }
     navigator.serviceWorker.ready.then(function(reg){ return reg.pushManager.getSubscription(); })
-      .then(function(sub){ els.notifyBtn.textContent = sub ? "🔕 כיבוי התראות" : "🔔 הפעילו התראות מחברים"; })
-      .catch(function(){ els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים"; });
+      .then(function(sub){
+        els.notifyBtn.textContent = sub ? "🔕 כיבוי התראות" : "🔔 הפעילו התראות מחברים";
+        if(els.notifHint) els.notifHint.hidden = !!sub;
+      })
+      .catch(function(){
+        els.notifyBtn.textContent = "🔔 הפעילו התראות מחברים";
+        if(els.notifHint) els.notifHint.hidden = false;
+      });
   }
   els.notifyBtn.addEventListener("click", function(){
     if(!pushSupported()){ showToast("הדפדפן הזה לא תומך בהתראות."); return; }
@@ -1513,6 +1585,10 @@
     els.notifList.innerHTML = entries.map(function(n, idx){
       var canReply = n.kind === "invite" && !n.replied && !n.cancelled && typeof n.fromId === "string" && typeof n.toId === "string";
       var hasMeetLoc = typeof n.meetLat === "number" && typeof n.meetLng === "number";
+      // התראת "מועדפים" (מישהו/י סימן/ה אותך בכוכב) - אם עדיין לא סימנו בחזרה מציגים כפתור
+      // "סמן/י גם בחזרה" ישירות מתוך ההתראה; אם כבר הפך/ה למועדף/ת הדדי/ת מציגים אישור במקום
+      var canStarBack = n.kind === "star" && typeof n.fromId === "string" && !isStarred(n.fromId);
+      var starredMutual = n.kind === "star" && typeof n.fromId === "string" && isMutualWith(n.fromId);
       return '<div class="notif-entry" data-notif-idx="'+idx+'">' +
         (n.read ? '' : '<span class="notif-unread-dot"></span>') +
         '<div style="flex:1;min-width:0">' +
@@ -1522,6 +1598,8 @@
           (canReply ? '<button type="button" class="invite-btn notif-reply-btn">יאללה! 🐾</button>' : '') +
           (n.kind === "invite" && n.replied ? '<div class="notif-replied">✅ עניתם יאללה</div>' : '') +
           (n.kind === "invite" && n.cancelled && !n.replied ? '<div class="notif-cancelled">🚫 ההצעה בוטלה</div>' : '') +
+          (canStarBack ? '<button type="button" class="invite-btn notif-starback-btn" data-from-id="'+escapeHtml(n.fromId)+'">⭐ סמן/י גם בחזרה</button>' : '') +
+          (starredMutual ? '<div class="notif-replied">✅ הפכתם למועדפים הדדיים - אפשר לשלוח "בוא/י לגינה"</div>' : '') +
         '</div>' +
       '</div>';
     }).join("");
@@ -1529,6 +1607,14 @@
       btn.addEventListener("click", function(){
         var lat = Number(btn.getAttribute("data-lat")), lng = Number(btn.getAttribute("data-lng"));
         if(isFinite(lat) && isFinite(lng)) focusMapOnPoint(lat, lng);
+      });
+    });
+    Array.prototype.forEach.call(els.notifList.querySelectorAll(".notif-starback-btn"), function(btn){
+      btn.addEventListener("click", function(){
+        var fromId = btn.getAttribute("data-from-id");
+        if(!socket || !fromId) return;
+        btn.disabled = true; btn.textContent = "מסמן/ת…";
+        socket.emit("favorite:toggle", { id: myId, targetId: fromId, on: true });
       });
     });
     Array.prototype.forEach.call(els.notifList.querySelectorAll(".notif-reply-btn"), function(btn){
@@ -1882,7 +1968,9 @@
       myFavoritesOut = (state && state.outgoing) || [];
       myFavoritesIn = (state && state.incoming) || [];
       myFavoriteProfiles = (state && state.profiles) || {};
-      renderList(); renderFriends();
+      // גם רשימת ההתראות תלויה במצב המועדפים (כפתור "סמן/י גם בחזרה" נעלם ברגע שהופכים
+      // למועדפים הדדיים) - מרעננים גם אותה כאן ולא רק בהגעת notifications:state נפרד
+      renderList(); renderFriends(); renderNotifications();
     });
     socket.on("history:state", function(state){
       myWalkHistory = (state && state.entries) || [];
@@ -2352,7 +2440,13 @@
       els.nearbyList.appendChild(card);
       card.querySelector(".star-btn").addEventListener("click", function(){
         if(!socket) return;
-        socket.emit("favorite:toggle", { id: myId, targetId: w.id, on: !isStarred(w.id) });
+        if(isStarred(w.id)){
+          confirmUnstarFriend(w.id, function(){
+            socket.emit("favorite:toggle", { id: myId, targetId: w.id, on: false });
+          });
+        } else {
+          socket.emit("favorite:toggle", { id: myId, targetId: w.id, on: true });
+        }
       });
     } else {
       els.nearbyList.appendChild(card); // ממקם בסדר הנכון (לפי מרחק) בלי להרוס את הצומת/התמונה
@@ -2491,8 +2585,10 @@
       card.querySelector(".close-x-btn").addEventListener("click", function(){ closeFriendDetail(id); });
       card.querySelector(".star-btn").addEventListener("click", function(){
         if(!socket) return;
-        socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
-        closeFriendDetail(id);
+        confirmUnstarFriend(id, function(){
+          socket.emit("favorite:toggle", { id: myId, targetId: id, on: false });
+          closeFriendDetail(id);
+        });
       });
       els.friendDetail.appendChild(card);
     } else {
