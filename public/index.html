@@ -353,6 +353,9 @@
   .chip{ font-size:.7rem; font-weight:700; padding:3px 8px; border-radius:999px; background:var(--surface-2);
     color:var(--text-muted); white-space:nowrap; }
   .chip.dist{color:var(--primary);background:color-mix(in srgb, var(--primary) 14%, transparent);}
+  /* שורת "צ'יפים" לפרטי פרופיל נוספים (גיל/מין/סירוס-עיקור/אופי משחק/העדפת מפגש) -
+     מוצגים רק כשיש ערך בפועל (סבב תיקונים 40), גם בכרטיס "בטיול עכשיו" וגם בכרטיסיית פרטי חבר/ה */
+  .wc-extra{ display:flex; flex-wrap:wrap; gap:6px; }
   .wc-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
   .star-btn{ appearance:none; border:1.5px solid var(--ring-strong); background:var(--surface-2); color:#D9A441;
     width:34px;height:34px;border-radius:50%; font-size:1.1rem; line-height:1; cursor:pointer; display:flex;
@@ -666,6 +669,29 @@
           <select id="dogBreed"></select></div>
         <div class="field"><label>תמונת הכלב</label><div id="iconPicker"></div>
           <div class="field-error" id="iconError" hidden>בחרו תמונה של הכלב כדי להמשיך</div></div>
+        <div class="field"><label for="dogAge">גיל הכלב/ה</label>
+          <select id="dogAge"></select></div>
+        <div class="field"><label for="dogSex">מין</label>
+          <select id="dogSex">
+            <option value="">לא צוין</option>
+            <option value="male">זכר</option>
+            <option value="female">נקבה</option>
+          </select></div>
+        <div class="field"><label for="dogNeutered">מסורס/מעוקרת?</label>
+          <select id="dogNeutered"></select></div>
+        <div class="field"><label for="dogPlayStyle">אופי משחק עם כלבים אחרים</label>
+          <select id="dogPlayStyle">
+            <option value="">לא צוין</option>
+            <option value="seeksPlay">מחפש/ת לשחק עם כלבים אחרים</option>
+            <option value="friendly">ידידותי/ת</option>
+            <option value="lessFriendly">פחות ידידותי/ת</option>
+          </select></div>
+        <div class="field"><label for="dogEncounterPref">הייתם מעדיפים להיתקל בכלבים או להימנע?</label>
+          <select id="dogEncounterPref">
+            <option value="">לא צוין</option>
+            <option value="prefersEncounter">מעדיפ/ה להיתקל בכלבים</option>
+            <option value="prefersAvoid">מעדיפ/ה להימנע מכלבים</option>
+          </select></div>
         <button type="submit" class="btn btn-primary" id="profileSubmitBtn">התחילו את הטיול</button>
       </form>
 
@@ -932,6 +958,7 @@
     walkTimer:$("walkTimer"), profileForm:$("profileForm"), profileSubmitBtn:$("profileSubmitBtn"), dogName:$("dogName"), dogBreed:$("dogBreed"),
     profileCloseBtn:$("profileCloseBtn"), dogNameDisplay:$("dogNameDisplay"), dogNameDisplayText:$("dogNameDisplayText"), dogNameEditToggle:$("dogNameEditToggle"), dogNameError:$("dogNameError"),
     iconPicker:$("iconPicker"), iconError:$("iconError"),
+    dogAge:$("dogAge"), dogSex:$("dogSex"), dogNeutered:$("dogNeutered"), dogPlayStyle:$("dogPlayStyle"), dogEncounterPref:$("dogEncounterPref"),
     nearbyList:$("nearbyList"), nearbyCount:$("nearbyCount"), emptyNote:$("emptyNote"),
     friendsList:$("friendsList"), friendsCount:$("friendsCount"), friendsEmptyNote:$("friendsEmptyNote"), friendDetail:$("friendDetail"),
     walksSummaryBtn:$("walksSummaryBtn"), walksSummaryCount:$("walksSummaryCount"), walksSummarySub:$("walksSummarySub"),
@@ -1181,6 +1208,66 @@
   }
   populateBreedSelect();
 
+  // ===== חמישה שדות פרופיל נוספים (סבב תיקונים 40) - כולם בחירה מתוך רשימה סגורה בלבד
+  // (לא טקסט חופשי), כדי שאפשר יהיה להציג אותם בבטחה בפרופיל כלבים אחרים (בטיול עכשיו/
+  // מפה/חברים). הערכים (value) חייבים להישאר תואמים לרשימות המקבילות ב-server.js =====
+  function hebMonthsLabel(n){ if(n===1) return "חודש"; if(n===2) return "חודשיים"; return n+" חודשים"; }
+  function hebYearsLabel(n){ if(n===1) return "שנה"; if(n===2) return "שנתיים"; if(n<=10) return n+" שנים"; return n+" שנה"; }
+  var DOG_AGES = (function(){
+    var list = [];
+    for(var m=1; m<=11; m++){ var ml = hebMonthsLabel(m); list.push({ v:"m"+m, label:ml, short:ml }); }
+    for(var y=1; y<=25; y++){ var yl = hebYearsLabel(y); list.push({ v:"y"+y, label:yl, short:yl }); }
+    list.push({ v:"25plus", label:"מעל 25 - תגידו, מה נראה לכם? עד 120 גם לכם 😄", short:"מעל 25" });
+    return list;
+  })();
+  var DOG_AGE_MAP = {};
+  DOG_AGES.forEach(function(a){ DOG_AGE_MAP[a.v] = a; });
+  function dogAgeLabel(v){ return (DOG_AGE_MAP[v] && DOG_AGE_MAP[v].short) || ""; }
+  function populateAgeSelect(){
+    els.dogAge.innerHTML = '<option value="">בחרו גיל (לא חובה)</option>' +
+      DOG_AGES.map(function(a){ return '<option value="'+a.v+'">'+a.label+'</option>'; }).join("");
+  }
+  populateAgeSelect();
+
+  function dogSexLabel(v){ return v==="male" ? "זכר" : v==="female" ? "נקבה" : ""; }
+  // תווית הסירוס/עיקור תלויה במין הכלב/ה (מסורס לזכר, מעוקרת לנקבה) - גם באפשרויות
+  // הבחירה בטופס (updateNeuteredOptions, מתעדכן בכל שינוי של שדה המין) וגם בתצוגה
+  // לאחרים (dogNeuteredLabel) - ה-value עצמו ("yes"/"no") תמיד נשאר קבוע, רק הטקסט משתנה
+  function dogNeuteredLabel(neutered, sex){
+    if(neutered==="yes") return sex==="male" ? "מסורס" : sex==="female" ? "מעוקרת" : "מסורס/מעוקרת";
+    if(neutered==="no") return sex==="male" ? "לא מסורס" : sex==="female" ? "לא מעוקרת" : "לא מסורס/לא מעוקרת";
+    return "";
+  }
+  function updateNeuteredOptions(){
+    var sex = els.dogSex.value;
+    var prev = els.dogNeutered.value;
+    els.dogNeutered.innerHTML =
+      '<option value="">לא צוין</option>' +
+      '<option value="yes">'+dogNeuteredLabel("yes", sex)+'</option>' +
+      '<option value="no">'+dogNeuteredLabel("no", sex)+'</option>';
+    els.dogNeutered.value = prev;
+  }
+  updateNeuteredOptions();
+  els.dogSex.addEventListener("change", updateNeuteredOptions);
+
+  var DOG_PLAYSTYLE_LABELS = { seeksPlay:"מחפש/ת לשחק עם כלבים אחרים", friendly:"ידידותי/ת", lessFriendly:"פחות ידידותי/ת" };
+  function dogPlayStyleLabel(v){ return DOG_PLAYSTYLE_LABELS[v] || ""; }
+  var DOG_ENCOUNTER_LABELS = { prefersEncounter:"מעדיפ/ה להיתקל בכלבים", prefersAvoid:"מעדיפ/ה להימנע מכלבים" };
+  function dogEncounterPrefLabel(v){ return DOG_ENCOUNTER_LABELS[v] || ""; }
+
+  // מרכז את חמשת השדות החדשים לרשימת תוויות קצרה (לתצוגה בפרופיל כלב אחר - בטיול
+  // עכשיו/מפה/חברים) - מדלג בשקט על כל שדה שלא צוין
+  function extraProfileLines(data){
+    var lines = [];
+    if(!data) return lines;
+    if(data.dogAge) lines.push(dogAgeLabel(data.dogAge));
+    if(data.dogSex) lines.push(dogSexLabel(data.dogSex));
+    if(data.dogNeutered) lines.push(dogNeuteredLabel(data.dogNeutered, data.dogSex));
+    if(data.dogPlayStyle) lines.push(dogPlayStyleLabel(data.dogPlayStyle));
+    if(data.dogEncounterPref) lines.push(dogEncounterPrefLabel(data.dogEncounterPref));
+    return lines.filter(function(s){ return !!s; });
+  }
+
   renderIconPicker();
 
   function uid(){
@@ -1210,7 +1297,9 @@
       method:"POST", headers:{"Content-Type":"application/json"},
       body: JSON.stringify({
         id: myId, dogName: profile.dogName, dogBreed: profile.dogBreed || "",
-        dogIcon: profile.dogIcon || null, dogColor: profile.dogColor || THEME_COLORS[0]
+        dogIcon: profile.dogIcon || null, dogColor: profile.dogColor || THEME_COLORS[0],
+        dogAge: profile.dogAge || "", dogSex: profile.dogSex || "", dogNeutered: profile.dogNeutered || "",
+        dogPlayStyle: profile.dogPlayStyle || "", dogEncounterPref: profile.dogEncounterPref || ""
       })
     }).then(function(r){ return r.json(); }).then(function(data){
       if(data && data.ok && data.code){ saveMyCode(data.code); renderAccountPanel(); }
@@ -1473,7 +1562,8 @@
         if(data && data.ok){
           try{
             localStorage.setItem("mibetiyul_id", data.id);
-            saveProfile({ dogName:data.dogName, dogBreed:data.dogBreed || "", dogType:"gallery", dogIcon:data.dogIcon || null, dogColor:data.dogColor || THEME_COLORS[0] });
+            saveProfile({ dogName:data.dogName, dogBreed:data.dogBreed || "", dogType:"gallery", dogIcon:data.dogIcon || null, dogColor:data.dogColor || THEME_COLORS[0],
+              dogAge:data.dogAge || "", dogSex:data.dogSex || "", dogNeutered:data.dogNeutered || "", dogPlayStyle:data.dogPlayStyle || "", dogEncounterPref:data.dogEncounterPref || "" });
             saveMyCode(data.code);
           }catch(e){}
           showToast("החשבון שוחזר! מרעננים…");
@@ -2032,6 +2122,8 @@
     socket.emit("checkin", {
       id: myId, dogName: profile.dogName, dogBreed: profile.dogBreed || "", dogType: "gallery", dogIcon: profile.dogIcon || null,
       dogColor: profile.dogColor || THEME_COLORS[0],
+      dogAge: profile.dogAge || "", dogSex: profile.dogSex || "", dogNeutered: profile.dogNeutered || "",
+      dogPlayStyle: profile.dogPlayStyle || "", dogEncounterPref: profile.dogEncounterPref || "",
       lat: myPos.lat, lng: myPos.lng, startedAt: walkStartedAt
     });
   }
@@ -2113,7 +2205,9 @@
     }
     if(els.dogNameError) els.dogNameError.hidden = true;
     if(!selectedIcon){ els.iconError.hidden = false; return; }
-    var profile = { dogName: typedName, dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor };
+    var profile = { dogName: typedName, dogBreed: els.dogBreed.value, dogType: "gallery", dogIcon: selectedIcon, dogColor: selectedColor,
+      dogAge: els.dogAge.value, dogSex: els.dogSex.value, dogNeutered: els.dogNeutered.value,
+      dogPlayStyle: els.dogPlayStyle.value, dogEncounterPref: els.dogEncounterPref.value };
     saveProfile(profile);
     syncProfileToServer(profile);
     updateEditProfileBtnIcon();
@@ -2133,6 +2227,12 @@
     selectedIcon = p.dogIcon || null;
     selectedColor = p.dogColor || THEME_COLORS[0];
     renderIconPicker();
+    els.dogAge.value = p.dogAge || "";
+    els.dogSex.value = p.dogSex || "";
+    updateNeuteredOptions();
+    els.dogNeutered.value = p.dogNeutered || "";
+    els.dogPlayStyle.value = p.dogPlayStyle || "";
+    els.dogEncounterPref.value = p.dogEncounterPref || "";
     formPurpose = "edit"; els.profileForm.hidden = false; updateProfileSubmitLabel();
     setDogNameEditable(!p.dogName);
   }
@@ -2330,8 +2430,10 @@
     var seen = {};
     list.forEach(function(w){
       seen[w.id] = true;
+      var extraLines = extraProfileLines(w.data);
       var popupHtml = "<b>"+escapeHtml(w.data.dogName)+"</b>"+
         (w.data.dogBreed ? "<br>"+escapeHtml(w.data.dogBreed) : "") +
+        (extraLines.length ? "<br>"+escapeHtml(extraLines.join(" · ")) : "") +
         "<br>"+fmtDist(w.dist)+" · "+fmtAgo(w.data.startedAt) +
         (isMutualWith(w.id) ?
           "<br><button type='button' class='invite-btn popup-invite-btn' data-popup-invite='"+escapeHtml(w.id)+"'>🐾 בוא/י לגינה</button>" +
@@ -2465,6 +2567,7 @@
           '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
           '<div class="meta"></div>' +
         '</div>' +
+        '<div class="wc-extra" hidden></div>' +
         '<div class="wc-actions">' +
           '<button type="button" class="star-btn" data-star="'+w.id+'" aria-label="מועדף"></button>' +
         '</div>';
@@ -2490,6 +2593,14 @@
     else { dogEl.hidden = true; dogEl.textContent = ""; }
     card.querySelector(".meta").innerHTML =
       '<span class="chip dist">'+fmtDist(w.dist)+'</span><span class="chip">'+fmtAgo(w.data.startedAt)+'</span>';
+    var extraEl = card.querySelector(".wc-extra");
+    var extraLines = extraProfileLines(w.data);
+    if(extraLines.length){
+      extraEl.hidden = false;
+      extraEl.innerHTML = extraLines.map(function(s){ return '<span class="chip">'+escapeHtml(s)+'</span>'; }).join("");
+    } else {
+      extraEl.hidden = true; extraEl.innerHTML = "";
+    }
 
     var starred = isStarred(w.id);
     var starBtn = card.querySelector(".star-btn");
@@ -2609,6 +2720,7 @@
           '<div class="info"><div class="name"></div><div class="dog" hidden></div></div>' +
           '<div class="meta"></div>' +
         '</div>' +
+        '<div class="wc-extra" hidden></div>' +
         '<div class="wc-actions">' +
           '<button type="button" class="star-btn active" title="הסרה מהמועדפים" aria-label="מועדף">★</button>' +
         '</div>' +
@@ -2634,6 +2746,14 @@
     card.querySelector(".meta").innerHTML = live
       ? '<span class="chip dist">🟢 בטיול עכשיו</span>'
       : '<span class="chip">לא בטיול כרגע</span>';
+    var extraEl = card.querySelector(".wc-extra");
+    var extraLines = extraProfileLines(data);
+    if(extraLines.length){
+      extraEl.hidden = false;
+      extraEl.innerHTML = extraLines.map(function(s){ return '<span class="chip">'+escapeHtml(s)+'</span>'; }).join("");
+    } else {
+      extraEl.hidden = true; extraEl.innerHTML = "";
+    }
 
     var actions = card.querySelector(".wc-actions");
     var inviteBtn = actions.querySelector(".invite-btn:not(.meetup-btn)");

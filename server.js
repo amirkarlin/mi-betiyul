@@ -22,6 +22,24 @@ const MAX_STRING_LEN = 40;
 const DOG_TYPES = ["floppy", "pointy", "curly", "small", "gallery"];
 const DOG_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
 const DEFAULT_DOG_COLOR = "#8B5A2B";
+// ===== חמישה שדות פרופיל נוספים (סבב תיקונים 40) - כולם "בחירה מתוך רשימה סגורה" בלבד,
+// אף פעם לא טקסט חופשי, כדי שאפשר יהיה להציג אותם בבטחה בפרופיל של כלבים אחרים (בטיול
+// עכשיו/מפה/חברים) בלי סיכון הזרקת תוכן. הערכים המותרים חייבים תמיד להישאר זהים לרשימות
+// המקבילות ב-public/index.html (DOG_AGES/select עבור sex/neutered/playStyle/encounterPref) =====
+const DOG_AGE_VALUES = (function () {
+  const v = [];
+  for (let m = 1; m <= 11; m++) v.push("m" + m);
+  for (let y = 1; y <= 25; y++) v.push("y" + y);
+  v.push("25plus");
+  return v;
+})();
+const DOG_SEX_VALUES = ["male", "female"];
+const DOG_NEUTERED_VALUES = ["yes", "no"];
+const DOG_PLAYSTYLE_VALUES = ["seeksPlay", "friendly", "lessFriendly"];
+const DOG_ENCOUNTER_VALUES = ["prefersEncounter", "prefersAvoid"];
+function sanitizeEnum(v, allowed) {
+  return typeof v === "string" && allowed.indexOf(v) !== -1 ? v : "";
+}
 const DEFAULT_DOG_NAME = "כלב/ה"; // פלייסהולדר בלבד (למשל בתוויות ריקות) - אף פעם לא מוצג כאילו הוא שם אמיתי בהודעות בין משתמשים
 // ממיר שם כלב ל"שם תצוגה" בטוח להצגה בהודעה בין משתמשים (הזמנה/יאללה/התראה) - אם השם
 // חסר, או שהוא בפועל רק הפלייסהולדר הגנרי (למשל פרופיל שנשמר פעם בלי שם אמיתי), מחזירים
@@ -175,7 +193,11 @@ function getProfileSummaries(ids) {
   ids.forEach((id) => {
     const p = store.profiles[id];
     if (p) {
-      result[id] = { dogName: p.dogName, dogBreed: p.dogBreed || "", dogIcon: p.dogIcon || null, dogColor: p.dogColor || DEFAULT_DOG_COLOR };
+      result[id] = {
+        dogName: p.dogName, dogBreed: p.dogBreed || "", dogIcon: p.dogIcon || null, dogColor: p.dogColor || DEFAULT_DOG_COLOR,
+        dogAge: p.dogAge || "", dogSex: p.dogSex || "", dogNeutered: p.dogNeutered || "",
+        dogPlayStyle: p.dogPlayStyle || "", dogEncounterPref: p.dogEncounterPref || ""
+      };
     }
   });
   return result;
@@ -486,6 +508,11 @@ app.post("/api/login-with-code", (req, res) => {
     dogBreed: profile.dogBreed,
     dogIcon: profile.dogIcon,
     dogColor: profile.dogColor,
+    dogAge: profile.dogAge || "",
+    dogSex: profile.dogSex || "",
+    dogNeutered: profile.dogNeutered || "",
+    dogPlayStyle: profile.dogPlayStyle || "",
+    dogEncounterPref: profile.dogEncounterPref || "",
     code: profile.code
   });
 });
@@ -528,7 +555,7 @@ app.post("/api/geocode", async (req, res) => {
   }
 });
 
-/** @type {Map<string, {dogName:string, dogBreed:string, dogType:string, dogColor:string, dogIcon:(string|null), lat:number, lng:number, startedAt:string, lastPing:string, socketId:string}>} */
+/** @type {Map<string, {dogName:string, dogBreed:string, dogType:string, dogColor:string, dogIcon:(string|null), dogAge:string, dogSex:string, dogNeutered:string, dogPlayStyle:string, dogEncounterPref:string, lat:number, lng:number, startedAt:string, lastPing:string, socketId:string}>} */
 const walkers = new Map();
 
 function sanitizeStr(v, fallback) {
@@ -565,7 +592,12 @@ function sanitizeProfileInput(body) {
     dogName: sanitizeStr(body.dogName, "כלב/ה"),
     dogBreed: sanitizeStr(body.dogBreed, ""),
     dogIcon: sanitizeDogIcon(body.dogIcon),
-    dogColor: sanitizeDogColor(body.dogColor)
+    dogColor: sanitizeDogColor(body.dogColor),
+    dogAge: sanitizeEnum(body.dogAge, DOG_AGE_VALUES),
+    dogSex: sanitizeEnum(body.dogSex, DOG_SEX_VALUES),
+    dogNeutered: sanitizeEnum(body.dogNeutered, DOG_NEUTERED_VALUES),
+    dogPlayStyle: sanitizeEnum(body.dogPlayStyle, DOG_PLAYSTYLE_VALUES),
+    dogEncounterPref: sanitizeEnum(body.dogEncounterPref, DOG_ENCOUNTER_VALUES)
   };
 }
 
@@ -578,6 +610,11 @@ function publicList() {
     dogType: w.dogType,
     dogColor: w.dogColor,
     dogIcon: w.dogIcon || null,
+    dogAge: w.dogAge || "",
+    dogSex: w.dogSex || "",
+    dogNeutered: w.dogNeutered || "",
+    dogPlayStyle: w.dogPlayStyle || "",
+    dogEncounterPref: w.dogEncounterPref || "",
     lat: w.lat,
     lng: w.lng,
     startedAt: w.startedAt,
@@ -626,6 +663,11 @@ io.on("connection", (socket) => {
       dogType: sanitizeDogType(data.dogType),
       dogColor: sanitizeDogColor(data.dogColor),
       dogIcon: sanitizeDogIcon(data.dogIcon),
+      dogAge: sanitizeEnum(data.dogAge, DOG_AGE_VALUES),
+      dogSex: sanitizeEnum(data.dogSex, DOG_SEX_VALUES),
+      dogNeutered: sanitizeEnum(data.dogNeutered, DOG_NEUTERED_VALUES),
+      dogPlayStyle: sanitizeEnum(data.dogPlayStyle, DOG_PLAYSTYLE_VALUES),
+      dogEncounterPref: sanitizeEnum(data.dogEncounterPref, DOG_ENCOUNTER_VALUES),
       lat: data.lat,
       lng: data.lng,
       startedAt: (existing && existing.startedAt) || sanitizeStr(data.startedAt, now) || now,
