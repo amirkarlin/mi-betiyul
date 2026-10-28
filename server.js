@@ -12,6 +12,10 @@ const crypto = require("crypto");
 const { createClient } = require("@supabase/supabase-js");
 
 const PORT = process.env.PORT || 3000;
+// ===== מפתח גישה לנתיב הסטטיסטיקה הפנימי (/api/admin/stats, ראו בהמשך) - לא קשור למשתמשים
+// בכלל, משמש רק כדי שאפשר יהיה לבדוק מעת לעת (למשל: "האם הצטרפו כלבים חדשים לאחרונה?")
+// בלי שהנתון יהיה פתוח לכל מי שמנחש את כתובת ה-API =====
+const ADMIN_STATS_KEY = process.env.ADMIN_STATS_KEY || "mibetiyul-stats-k7f2n9qzx4";
 const STALE_MS = 20 * 60 * 1000;      // מטייל שלא עדכן מיקום 20 דק' נחשב לא פעיל
 const CLEANUP_INTERVAL_MS = 60 * 1000; // תדירות בדיקת "ניקוי" מטיילים ישנים
 const MAX_STRING_LEN = 40;
@@ -440,9 +444,32 @@ app.post("/api/profile", (req, res) => {
   if (!clean) return res.status(400).json({ ok: false });
   const existing = store.profiles[id];
   const code = (existing && existing.code) || generateUniqueCode();
-  store.profiles[id] = Object.assign({}, clean, { code, updatedAt: new Date().toISOString() });
+  // ===== createdAt: נשמר פעם אחת בלבד (בפעם הראשונה שרואים את ה-id הזה) ולא נדרס יותר
+  // בשמירות הבאות - כדי שאפשר יהיה לדעת מתי כל כלב/ה "הצטרפ/ה" בפועל, להבדיל מ-updatedAt
+  // שמתעדכן בכל עריכת פרופיל. לב"כים קיימים שנוצרו לפני התוספת הזו, התאריך שייקבע כאן
+  // בפעם הראשונה שהם ישמרו משהו אחרי העדכון הוא תאריך "גילוי" ולא תאריך הצטרפות אמיתי -
+  // אין דרך לשחזר את התאריך האמיתי שלהם כי הוא פשוט לא נשמר עד עכשיו =====
+  const isNewProfile = !existing;
+  const createdAt = (existing && existing.createdAt) || new Date().toISOString();
+  store.profiles[id] = Object.assign({}, clean, { code, createdAt, updatedAt: new Date().toISOString() });
   saveStore();
+  if (isNewProfile) {
+    console.log("🐾 פרופיל חדש נוצר: " + (clean.dogName || "?") + " (" + id + ") ב-" + createdAt);
+  }
   res.json({ ok: true, code });
+});
+
+// ===== נתיב סטטיסטיקה פנימי בלבד (לא קשור לשום פיצ'ר באפליקציה עצמה) - מאפשר לבדוק כמה
+// פרופילים נשמרו בסה"כ ומתי כל אחד מהם נוצר/עודכן לאחרונה, כדי לענות על שאלות כמו "האם
+// הצטרפו משתמשים חדשים לאחרונה". מוגן ע"י ADMIN_STATS_KEY כדי שלא יהיה פתוח לכל אחד =====
+app.get("/api/admin/stats", (req, res) => {
+  if (req.query.key !== ADMIN_STATS_KEY) return res.status(403).json({ ok: false });
+  const profiles = Object.keys(store.profiles).map((id) => {
+    const p = store.profiles[id];
+    return { dogName: p.dogName || null, createdAt: p.createdAt || null, updatedAt: p.updatedAt || null };
+  });
+  profiles.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  res.json({ ok: true, totalProfiles: profiles.length, profiles });
 });
 
 app.post("/api/login-with-code", (req, res) => {
