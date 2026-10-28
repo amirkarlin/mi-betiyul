@@ -369,8 +369,10 @@
   .empty-note{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow); padding:20px;
     text-align:center; color:var(--text-muted); font-size:.86rem; line-height:1.6; }
 
-  /* הערות קבועות מעל רשימות (למשל: הסבר על כוכב מועדפים, תזכורת להפעלת התראות) */
-  .section-hint{ font-size:.78rem; color:var(--text-muted); line-height:1.5; margin:-2px 0 10px; }
+  /* הערות קבועות מעל רשימות (למשל: הסבר על כוכב מועדפים, תזכורת להפעלת התראות) - עם רקע
+     לבן כמו שאר הקוביות באפליקציה (empty-note וכו'), כדי שבאמת יהיו בולטות ולא "ייעלמו" */
+  .section-hint{ background:var(--surface); border-radius:var(--radius-md); box-shadow:var(--shadow);
+    padding:12px 14px; font-size:.82rem; color:var(--text-muted); line-height:1.5; margin:0 0 10px; }
 
   /* ===== קוביית אישור גנרית (כרגע: אישור הסרה מהמועדפים) ===== */
   .confirm-overlay{ position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9850;
@@ -706,13 +708,13 @@
     </div>
 
     <div class="panel-title"><h2>בטיול עכשיו</h2><span id="nearbyCount"></span></div>
-    <div class="section-hint">⭐ סמנו מועדף/ת - אם יסמנו גם אתכם בחזרה תהיו חברים, ותוכלו לשלוח זה לזה נקודת מפגש.</div>
     <div id="nearbyContainer">
       <div class="empty-note" id="emptyNote">עדיין לא רואים כאן אף אחד. ברגע שמישהו לידך ילחץ על "יצאתי לטיול", הוא/היא יופיעו כאן.</div>
       <div class="nearby-list" id="nearbyList"></div>
     </div>
 
     <div class="panel-title"><h2>החברים שלי</h2><span id="friendsCount"></span></div>
+    <div class="section-hint">⭐ סמנו מועדף/ת ב"בטיול עכשיו" - אם יסמנו גם אתכם בחזרה תהיו חברים, ותוכלו לשלוח זה לזה נקודת מפגש.</div>
     <div id="friendsContainer">
       <div class="empty-note" id="friendsEmptyNote">עדיין אין לכם חברים מועדפים. לחצו על הכוכב ☆ ליד כלב/ה ב"בטיול עכשיו" כדי להוסיף אותם לכאן.</div>
       <div class="friends-row" id="friendsList"></div>
